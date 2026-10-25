@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test circuit solver
-        run: node --test tests/solver.test.mjs
+        run: node --test tests/*.test.mjs
       - name: Build static website
         run: node build.mjs
       - uses: actions/upload-pages-artifact@v3
