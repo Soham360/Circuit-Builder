@@ -39,3 +39,6 @@ body[data-view=breadboard] .lab-layout{grid-template-columns:125px minmax(0,1fr)
 @media(max-width:650px){.board-edit-tools{padding:3px;gap:1px;flex-wrap:wrap}.board-edit-tools button{font-size:6px;padding:4px 3px}}
 .board-part-moving{opacity:.7;filter:drop-shadow(0 2px 2px #40583844)}#breadboard-canvas:focus{outline:none}#breadboard-canvas:focus-visible{outline:2px solid #d9633e66;outline-offset:-2px}
 #breadboard-canvas[data-mode=wire] *{pointer-events:none}#breadboard-canvas[data-mode=wire] .board-hole-hit{pointer-events:all}
+
+.solution-page{overflow:auto!important}.math-line{overflow-x:auto;max-width:100%;color:#425437;line-height:1.9;margin:16px 0}.solution-circuit{margin:16px 0;padding:12px;border:1px solid #e2e7db;border-radius:8px}.solution-circuit svg{display:block;width:100%;max-height:240px}.solution-circuit figcaption{font-size:12px;margin-top:10px}.solution-pager{flex-wrap:wrap}.equation-row{display:block}
+@media print{.print-only{display:block!important}.print-only details,.print-only details>*{display:block}.print-only .worked-steps>li{break-inside:auto}.print-only .math-line,.print-only figure{break-inside:avoid}.print-only .math-line{overflow:visible;font-size:10px}.print-only .solution-circuit svg{max-height:220px}@page{size:A4;margin:16mm}}
