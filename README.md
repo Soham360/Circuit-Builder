@@ -68,3 +68,7 @@ The Wheatstone bridge template is a classic diamond. The original unmodified rec
 ### Vendored algebra
 
 Nerdamer 2.0.0 is bundled from its npm distribution, with MIT license notices in vendor/. The numerical simulation remains dependency-free. Build copies the worker, homework modules, and vendor assets to dist/.
+
+## Navigation and deployment
+
+The URL fragment selects the page, including direct links and reloads at #homework. Browser Back/Forward and fragment changes update the visible editor and navigation together. Production builds place all modules, styles, and worker dependencies in a content-versioned assets directory, so older cached scripts cannot mix with a newer page. Workers resolve relative to their module URL. The static build workflow is the single GitHub Pages publishing path.
