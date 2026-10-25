@@ -54,3 +54,16 @@ body[data-view=breadboard] .lab-layout{grid-template-columns:125px minmax(0,1fr)
 .right-column input[type=number]{min-height:38px;line-height:20px;padding-top:8px;padding-bottom:8px}
 .right-column input[type=number]::-webkit-inner-spin-button{height:24px;max-height:none;opacity:1}
 .right-column>.panel{overflow-y:auto;overflow-x:hidden}
+
+.solution-main{display:flex;flex:1;min-height:0;min-width:0;overflow:hidden}
+.solution-main>.solution-page{height:100%;min-width:0}
+.circuit-beside .solution-main{display:grid;grid-template-columns:minmax(0,44fr) minmax(0,56fr);gap:18px}
+.solution-reference{display:flex;flex-direction:column;min-height:0;min-width:0;border:1px solid var(--line);border-radius:8px;background:#fcfdf9;overflow:hidden}
+.reference-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px;flex-wrap:wrap}
+.reference-heading .button{padding:5px 8px;font-size:11px}
+.reference-diagram{display:flex;flex:1;min-height:0;min-width:0;overflow:auto;padding:10px}
+.reference-diagram .solution-circuit{display:flex;flex-direction:column;justify-content:center;flex:1;min-width:0;margin:0;padding:5px;border:0}
+.reference-diagram .solution-circuit svg{width:100%;height:100%;max-height:none;min-height:150px;flex:1}
+.reference-diagram figcaption{flex:none;font-size:10px;line-height:1.5}
+@media(max-width:700px){.circuit-beside .solution-main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,35%) minmax(0,1fr);gap:8px}.reference-heading{padding:5px 8px;font-size:10px}.reference-diagram{padding:4px}.reference-diagram .solution-circuit svg{min-height:0}.reference-diagram figcaption{display:none}}
+@media print{.solution-main{display:none!important}}
