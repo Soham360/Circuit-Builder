@@ -44,3 +44,13 @@ body[data-view=breadboard] .lab-layout{grid-template-columns:125px minmax(0,1fr)
 @media print{.print-only{display:block!important}.print-only details,.print-only details>*{display:block}.print-only .worked-steps>li{break-inside:auto}.print-only .math-line,.print-only figure{break-inside:avoid}.print-only .math-line{overflow:visible;font-size:10px}.print-only .solution-circuit svg{max-height:220px}@page{size:A4;margin:16mm}}
 
 .junction-name{pointer-events:all;cursor:pointer;fill:#9d623e;paint-order:stroke;stroke:#fff;stroke-width:4px}.wire-endpoint:focus{stroke:#d9633e;stroke-width:2px;outline:none}
+
+/* Keep the value field and both step controls inside narrow property panels. */
+.value-input{min-width:0;width:100%;gap:6px}
+.value-input input{flex:1 1 0;width:0;min-width:0;min-height:40px;line-height:20px}
+.value-input .unit{flex:0 0 auto}
+.resistance-arrows{flex:0 0 32px;width:32px;min-width:32px;min-height:40px;overflow:visible}
+.resistance-arrows button{display:grid;place-items:center;flex:1 0 20px;min-height:20px;line-height:1;padding:2px 6px}
+.right-column input[type=number]{min-height:38px;line-height:20px;padding-top:8px;padding-bottom:8px}
+.right-column input[type=number]::-webkit-inner-spin-button{height:24px;max-height:none;opacity:1}
+.right-column>.panel{overflow-y:auto;overflow-x:hidden}
