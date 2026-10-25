@@ -2,7 +2,7 @@ import './vendor/katex.min.js';
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const text=s=>'\\text{'+String(s).replace(/[\\{}#$%&_]/g,c=>'\\'+c)+'}';
 const units=new Set(['V','A','W','F','H','S','Hz','ms','s','mV','mA','µA','μA','kΩ','MΩ','Ω','µF','μF','mH','kHz','mW','µW','μW']);
-function variable(v){if(units.has(v))return '\\mathrm{'+v.replace('Ω','\\Omega ').replace(/[µμ]/g,'\\mu ')+'}';const match=v.match(/^([A-Za-z]+)(\d+)(?:\.([AB]))?\??$/);if(match){const [,prefix,index,pin]=match;return prefix==='N'?`V_{\\mathrm{N${index}}}`:`${prefix}_{${index}${pin?','+pin:''}}`;}return /^[A-Za-z]$/.test(v)?v:'\\mathrm{'+v.replace(/_/g,'\\_')+'}';}
+function variable(v){if(/^V[A-Z]$/.test(v))return 'V_{'+v.slice(1)+'}';if(units.has(v))return '\\mathrm{'+v.replace('Ω','\\Omega ').replace(/[µμ]/g,'\\mu ')+'}';const match=v.match(/^([A-Za-z]+)(\d+)(?:\.([AB]))?\??$/);if(match){const [,prefix,index,pin]=match;return prefix==='N'?`V_{\\mathrm{N${index}}}`:`${prefix}_{${index}${pin?','+pin:''}}`;}return /^[A-Za-z]$/.test(v)?v:'\\mathrm{'+v.replace(/_/g,'\\_')+'}';}
 function expression(source){
  const tokens=source.replace(/[−–]/g,'-').match(/\d*\.?\d+(?:e[+-]?\d+)?|[A-Za-zµμΩ][A-Za-z0-9_.?µμΩ]*|[()+\-*/^,]/gi)||[];let at=0;
  function atom(){const t=tokens[at++];if(!t)throw Error('Incomplete expression');if(t==='-')return {tex:'-'+parse(30).tex,p:30};if(t==='+')return parse(30);if(t==='('){const v=parse(0);if(tokens[at++]!==')')throw Error('Unbalanced expression');return {tex:'\\left('+v.tex+'\\right)',p:100};}if(/^\d|^\./.test(t)){const sci=t.match(/^(.+)e([+-]?\d+)$/i);return {tex:sci?`${sci[1]}\\times10^{${Number(sci[2])}}`:t,p:100};}

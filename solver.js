@@ -70,3 +70,11 @@ export function solve(circuit,{mode='dc',frequency=50,dt=0.001,time=0,history={}
  return {results,history:next,voltage,topology:top};
 }
 export function transient(circuit,{duration=0.1,steps=300}={}){let history={},out=[];const dt=duration/steps;for(let k=1;k<=steps;k++){const t=k*dt,s=solve(circuit,{mode:'transient',dt,time:t,history});history=s.history;out.push({time:t,...s});}return out;}
+
+// Junction labels name wire locations; topology groups equal-potential aliases.
+export function nodeLabels(circuit,top=topology(circuit)){
+ const labels=Object.fromEntries(Array.from({length:top.count},(_,i)=>{const id='N'+(i+1);return [id,{id,name:circuit.nodeNames?.[id]||id,aliases:[]}];}));labels['0']={id:'0',name:'0',aliases:[]};
+ for(const [coordinate,value] of Object.entries(circuit.junctionNames||{})){if(typeof value!=='string'||!value.trim())continue;const point=top.points.get(coordinate);if(!point)continue;const n=top.node(point),id=n<0?'0':'N'+(n+1),entry=labels[id];if(!entry.aliases.includes(value.trim()))entry.aliases.push(value.trim());}
+ for(const entry of Object.values(labels))if(entry.id!=='0'&&entry.aliases.length)entry.name=entry.aliases[0];
+ return labels;
+}
