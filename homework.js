@@ -1,9 +1,11 @@
+import {equivalentResistance} from './equivalent.js';
 import {pins,topology,solve,terminal,dependentTypes,voltageControlled,currentControlled} from './solver.js';
 
 // Deterministic DC modified nodal analysis. Algebra is supplied by the vendored
 // Nerdamer engine; no network requests, prompts, or language model are involved.
 export function homework(circuit,query,n){
  if(!n)throw Error('The local algebra engine did not load. Reload the page.');
+ if(query.kind==='equivalent')return equivalentResistance(circuit,query,n);
  if(circuit.components.length>24)throw Error('Worked symbolic solutions support up to 24 components. Split this problem into smaller networks.');
  const top=topology(circuit),parts=circuit.components.filter(c=>c.type!=='ground');
  if(top.count>16)throw Error('Worked solutions support up to 16 non-ground nodes.');
