@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const root=process.cwd(),dist=path.resolve(root,'dist');
 if(path.dirname(dist)!==root||path.basename(dist)!=='dist')throw Error('Invalid build output directory');
-const files=['equivalent-ui.js','equivalent.js','style.css','app.js','routing.js','solver.js','content.js','homework.js','homework-ui.js','homework-worker.js','resistor.js','breadboard.js','math.js','pagination.js','values.js','breadboard-model.js'];
+const files=['lesson-animations.js','equivalent-ui.js','equivalent.js','style.css','app.js','routing.js','solver.js','content.js','homework.js','homework-ui.js','homework-worker.js','resistor.js','breadboard.js','math.js','pagination.js','values.js','breadboard-model.js'];
 const hash=createHash('sha256');
 for(const file of ['index.html',...files,'vendor/nerdamer.js','vendor/katex.min.js'])hash.update(file).update(await readFile(file));
 const revision=hash.digest('hex').slice(0,16),assetPath=`assets/${revision}`;

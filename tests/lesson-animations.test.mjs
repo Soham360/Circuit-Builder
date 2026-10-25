@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {lessonStories} from '../lesson-animations.js';
+import {lessons} from '../content.js';
+import {solve} from '../solver.js';
+const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-7*Math.max(1,Math.abs(b)),`${a} != ${b}`);
+function pathWires(d){const tokens=d.match(/[MHV]|-?\d+(?:\.\d+)?/g);let i=0,p=null,points=[],out=[];const flush=()=>{if(points.length>1)out.push({points});points=[];};while(i<tokens.length){const cmd=tokens[i++];if(cmd==='M'){flush();p={x:Number(tokens[i++]),y:Number(tokens[i++])};}else if(cmd==='H')p={x:Number(tokens[i++]),y:p.y};else if(cmd==='V')p={x:p.x,y:Number(tokens[i++])};else throw Error('Unsupported path command '+cmd);points.push({...p});}flush();return out;}
+function circuit(frame){return {components:[...frame.parts.map(p=>({id:p.id,type:p.type==='short'?'voltage':p.type,x:p.x,y:p.y,rot:p.rot,length:90,value:Number.parseFloat(p.value)*(p.value.includes('kΩ')?1000:p.value.includes('mA')?.001:1)})),{id:'ground',type:'ground',x:650,y:300,rot:0,value:0}],wires:frame.wires.filter(w=>w.id!=='control').flatMap(w=>pathWires(w.d))};}
+test('all ten guides have complete illustrated multistep storyboards',()=>{assert.equal(lessons.length,10);for(const lesson of lessons){const frames=lessonStories[lesson.id];assert.ok(frames?.length>=3,lesson.id);for(const frame of frames){assert.ok(frame.title&&frame.caption);assert.ok(frame.parts.length&&frame.wires.length);assert.equal(new Set(frame.parts.map(p=>p.id)).size,frame.parts.length);for(const part of frame.parts)assert.ok([part.x,part.y,part.rot].every(Number.isFinite));}}});
+test('loaded divider, Thévenin equivalent and Norton equivalent give identical load voltage',()=>{for(const index of [0,4,5]){const c=circuit(lessonStories.thevenin[index]);const s=solve(c);near(s.results.rl.v.re,10/3);near(s.results.rl.i.re,1/300);}});
+test('removing the load gives the 5 V open-circuit Thévenin voltage',()=>{const s=solve(circuit(lessonStories.thevenin[1]));near(s.results.r2.v.re,5);});
+test('deactivated source and redrawn parallel pair both present 500 ohms',()=>{for(const index of [2,3]){const c=circuit(lessonStories.thevenin[index]);c.components.push({id:'test',type:'voltage',x:780,y:195,rot:90,length:90,value:1});c.wires.push(...pathWires('M780 150V90H650'),...pathWires('M780 240V300H650'));const s=solve(c);near(1/Math.abs(s.results.test.i.re),500);}});
+test('unbalanced bridge animation uses loaded midpoint voltages and correct current direction',()=>{const c=circuit(lessonStories.bridge[2]);Object.assign(c.components.at(-1),{x:100,y:330});const s=solve(c);near(s.results.r2.v.re,70/13);near(s.results.r4.v.re,80/13);near(s.results.r5.i.re,-1/1300);});
+test('RC and RL markers obey the exponential response',()=>{for(const id of ['rc','rl'])for(const frame of lessonStories[id])near(frame.plot.fraction,1-Math.exp(-frame.plot.t));});
+test('AC output amplitude and phase follow the low-pass transfer function',()=>{for(const [i,f]of [.1,1,10].entries()){const p=lessonStories.ac[i].plot;near(p.gain,1/Math.sqrt(1+f*f));near(p.phase,-Math.atan(f));}});

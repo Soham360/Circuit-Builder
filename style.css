@@ -67,3 +67,33 @@ body[data-view=breadboard] .lab-layout{grid-template-columns:125px minmax(0,1fr)
 .reference-diagram figcaption{flex:none;font-size:10px;line-height:1.5}
 @media(max-width:700px){.circuit-beside .solution-main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,35%) minmax(0,1fr);gap:8px}.reference-heading{padding:5px 8px;font-size:10px}.reference-diagram{padding:4px}.reference-diagram .solution-circuit svg{min-height:0}.reference-diagram figcaption{display:none}}
 @media print{.solution-main{display:none!important}}
+
+.lesson-content{overflow-y:auto;overscroll-behavior:contain;padding-right:8px}
+.lesson-animation{border:1px solid #dfe5d6;background:#fcfdf9;border-radius:10px;overflow:hidden;margin:0 0 22px}
+.lesson-animation-header{display:flex;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid #e6eadf}
+.lesson-stage-count{font:11px var(--mono);color:#7c876f}
+.lesson-animation-svg{display:block;width:100%;height:auto;max-height:380px;background:linear-gradient(120deg,#fdfefb,#f3f6ed);overflow:visible}
+.lesson-animation-svg text{font:13px 'Segoe UI',sans-serif;fill:#475541}
+.lesson-symbol{stroke:#657c56;stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+.lesson-part{transition:transform .65s cubic-bezier(.22,1,.36,1),opacity .35s ease;transform-origin:0 0}
+.lesson-part-active .lesson-symbol{stroke:#d9633e;stroke-width:3}
+.lesson-part-label{font-weight:600!important}.lesson-part-value{font-size:11px!important;fill:#7e856f!important}
+.lesson-wire{fill:none;stroke:#9aa88e;stroke-width:2;stroke-linecap:round;transition:opacity .35s ease}
+.lesson-flow{stroke:#cb8051;stroke-dasharray:7 8;animation:lesson-flow 1.5s linear infinite}
+.lesson-control-wire{stroke:#b49155;stroke-dasharray:5 5}
+.lesson-callout{font-size:14px!important;fill:#a1603d!important;font-weight:550!important}
+.source-short{stroke:#d9633e;stroke-width:4}.plot-axis{fill:none;stroke:#bdc6b5;stroke-width:1}
+.lesson-curve{fill:none;stroke:#d9633e;stroke-width:2.8}.plot-input{fill:none;stroke:#97a28e;stroke-width:2}.plot-marker{fill:#d9633e;stroke:white;stroke-width:2}
+.lesson-animation-caption{padding:14px 18px 4px;border-top:1px solid #e5eadc;min-height:100px}
+.lesson-animation-caption h3{font-size:16px;line-height:1.4}.lesson-animation-caption p{font-size:12px;line-height:1.7;margin:8px 0}
+.lesson-animation-controls{display:flex;align-items:center;gap:7px;padding:10px 16px;flex-wrap:wrap}.lesson-animation-controls .button{font-size:11px;padding:7px 10px;border:1px solid #dfe4d6}
+.lesson-animation-stages{margin-left:auto;display:flex;gap:5px}.lesson-animation-stages button{font:11px var(--mono);border:1px solid #e0e5d7;border-radius:50%;width:28px;height:28px}.lesson-animation-stages button[aria-pressed=true]{background:#f7e4d7;color:#9d5935;border-color:#e9c5ab}
+.lesson-animation .lesson-motion-note{font-size:9px;line-height:1.5;margin:0;padding:0 16px 12px;color:#849077}
+.animation-paused .lesson-flow{animation-play-state:paused}.animation-reduced .lesson-part,.animation-reduced .lesson-wire{transition:none}
+@keyframes lesson-flow{to{stroke-dashoffset:-30}}
+@media(prefers-reduced-motion:reduce){.lesson-flow{animation:none}.lesson-part,.lesson-wire{transition:none}}
+@media(max-width:650px){.lesson-animation-header{padding:9px 12px}.lesson-animation-caption{padding:10px 12px;min-height:110px}.lesson-animation-caption h3{font-size:14px}.lesson-animation-controls{padding:8px 10px;gap:5px}.lesson-animation-stages{width:100%;margin:3px 0 0}.lesson-animation-svg{min-height:180px}.lesson-content{padding-right:3px}}
+
+@media(min-width:851px){.lesson-animation{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1fr)}.lesson-animation-header,.lesson-animation-controls,.lesson-motion-note{grid-column:1/-1}.lesson-animation-header{padding:9px 14px}.lesson-animation-svg{height:clamp(190px,30vh,260px);min-width:0;max-height:none}.lesson-animation-caption{border-top:0;border-left:1px solid #e5eadc;display:flex;flex-direction:column;justify-content:center;min-height:0;padding:12px 16px}.lesson-animation-controls{border-top:1px solid #e5eadc;padding:8px 14px}.lesson-animation .lesson-motion-note{padding-bottom:8px}}
+
+.lesson-animation-svg text{font-size:17px}.lesson-animation-svg .lesson-part-value{font-size:14px!important}.lesson-animation-svg .lesson-callout{font-size:17px!important}
