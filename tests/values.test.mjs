@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {parseEngineeringValue,leastNonzeroStep,stepResistance} from '../values.js';
+for(const [input,value]of [['2k',2000],['2.2kΩ',2200],['4k7',4700],['1M',1e6],['5m',.005],['4R7',4.7],['2e3',2000],['2,000',2000],['.5 k ohms',500],['10µ',.00001]])test(`engineering input ${input}`,()=>assert.ok(Math.abs(parseEngineeringValue(input)-value)<Math.max(1e-12,Math.abs(value)*1e-12)));
+for(const input of ['','cat','2kk','0x10','Infinity','1e999','2,2'])test(`reject malformed input ${JSON.stringify(input)}`,()=>assert.throws(()=>parseEngineeringValue(input)));
+for(const [value,step]of [[2000,1000],[2200,100],[2010,10],[1002,1],[2.2,.1],[.002,.001],[.00102,.00001],[1e6,1e6]])test(`least non-zero place for ${value}`,()=>assert.ok(Math.abs(leastNonzeroStep(value)-step)<step*1e-10));
+test('arrow stepping respects decimal precision and positive resistance',()=>{assert.equal(stepResistance(2000,-1),1000);assert.equal(stepResistance(2200,1),2300);assert.equal(stepResistance(2.2,-1),2.1);assert.equal(stepResistance(.002,1),.003);assert.throws(()=>stepResistance(1000,-1),/above 0/);});

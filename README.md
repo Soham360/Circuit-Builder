@@ -86,3 +86,11 @@ Schematic resistors use the standard zigzag symbol. Breadboard resistors display
 Equations render locally with KaTeX 0.16.22's accessible MathML output. Worked pages include Copy LaTeX, and the complete derivation remains available through browser printing. KaTeX and Nerdamer are vendored with their licenses; no AI service or runtime CDN is used.
 
 Click a terminal or wire endpoint to start a connection without selecting Wire; completion returns to selection. The Wire tool remains available for repeated wiring. Drag empty schematic space to pan and scroll there to zoom around the pointer. Grid dots retain a visible screen size as the camera changes.
+
+## Resistance entry and editable breadboards
+
+Resistance accepts engineering notation such as `2k`, `2.2kΩ`, `4k7`, and `1M`; Enter, Apply, or leaving the field normalizes it to ohms. The on-screen arrows and keyboard Up/Down step by the smallest non-zero place of the current value (`2000 → 1000`, `2200 → 100`, `2.2 → 0.1`). A step cannot produce zero or negative resistance.
+
+Components mount horizontally or vertically between actual five-hole terminal strips. Supply and return jumpers are single vertical wires, and each jumper has only two endpoints. Battery leads terminate on separate power rail holes. Independent supplies receive separate boards when needed.
+
+Breadboard Inspect edits the shared component values; Move parts drags legs to new holes; Wire joins two free holes in one row or column; Erase wire removes a jumper. Rotate acts on the selected breadboard component. Physical bus connections are traced back into the schematic, including opens, shorts, and changed sensing terminals. Electrical edits are verified against the schematic topology before being committed. Unchanged connectivity keeps the existing schematic layout. Undo, local saving, reload, and circuit export retain edited breadboard layouts. Schematic topology changes regenerate the automatic breadboard layout.
