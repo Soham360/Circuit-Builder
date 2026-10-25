@@ -5,16 +5,18 @@ const neg=a=>z(-a.re,-a.im);
 const mul=(a,b)=>z(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
 const div=(a,b)=>{const d=b.re*b.re+b.im*b.im;return z((a.re*b.re+a.im*b.im)/d,(a.im*b.re-a.re*b.im)/d);};
 export const magnitude=a=>Math.hypot(a.re,a.im);
-export function pins(c){if(c.type==='ground')return [{x:c.x,y:c.y}];const dx=c.rot===90?0:48,dy=c.rot===90?48:0;return [{x:c.x-dx,y:c.y-dy},{x:c.x+dx,y:c.y+dy}];}
-export const key=p=>`${p.x},${p.y}`;
-function onSegment(p,a,b){return (a.x===b.x&&p.x===a.x&&p.y>=Math.min(a.y,b.y)&&p.y<=Math.max(a.y,b.y))||(a.y===b.y&&p.y===a.y&&p.x>=Math.min(a.x,b.x)&&p.x<=Math.max(a.x,b.x));}
+export const roundCoord=v=>Math.round(v*1e7)/1e7;
+export function pins(c){if(c.type==='ground')return [{x:c.x,y:c.y}];const a=(c.rot||0)*Math.PI/180,h=(c.length||96)/2,dx=Math.cos(a)*h,dy=Math.sin(a)*h;return [{x:roundCoord(c.x-dx),y:roundCoord(c.y-dy)},{x:roundCoord(c.x+dx),y:roundCoord(c.y+dy)}];}
+export const key=p=>`${roundCoord(p.x)},${roundCoord(p.y)}`;
+function onSegment(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy);return length<1e-9?Math.hypot(p.x-a.x,p.y-a.y)<1e-6:Math.abs((p.x-a.x)*dy-(p.y-a.y)*dx)/length<1e-6&&(p.x-a.x)*dx+(p.y-a.y)*dy>=-1e-6&&(p.x-b.x)*dx+(p.y-b.y)*dy<=1e-6;}
+export function routeWire(a,b,{mode='orthogonal',angle=45}={}){const p=[{...a}];if(mode==='direct'){p.push({...b});return p;}if(mode==='angle'){const t=angle*Math.PI/180,dx=Math.cos(t),dy=Math.sin(t),options=[];if(Math.abs(dx)>1e-8){const k=(b.x-a.x)/dx;options.push({x:b.x,y:roundCoord(a.y+k*dy)});}if(Math.abs(dy)>1e-8){const k=(b.y-a.y)/dy;options.push({x:roundCoord(a.x+k*dx),y:b.y});}options.sort((p,q)=>Math.hypot(p.x-a.x,p.y-a.y)+Math.hypot(p.x-b.x,p.y-b.y)-Math.hypot(q.x-a.x,q.y-a.y)-Math.hypot(q.x-b.x,q.y-b.y));const bend=options[0];if(bend&&key(bend)!==key(a)&&key(bend)!==key(b))p.push(bend);}else if(a.x!==b.x&&a.y!==b.y)p.push({x:b.x,y:a.y});p.push({...b});return p;}
 export function topology(circuit){
  const points=new Map(),parent=new Map();
  const put=p=>{points.set(key(p),p);parent.set(key(p),key(p));};
  circuit.components.forEach(c=>pins(c).forEach(put));circuit.wires.forEach(w=>w.points.forEach(put));
  const find=a=>{if(parent.get(a)!==a)parent.set(a,find(parent.get(a)));return parent.get(a);};
  const union=(a,b)=>parent.set(find(a),find(b));
- for(const w of circuit.wires){for(let i=1;i<w.points.length;i++){const a=w.points[i-1],b=w.points[i];if(a.x!==b.x&&a.y!==b.y)throw Error('Wires must have horizontal or vertical segments.');for(const [k,p]of points)if(onSegment(p,a,b))union(key(a),k);}}
+ for(const w of circuit.wires){for(let i=1;i<w.points.length;i++){const a=w.points[i-1],b=w.points[i];for(const [k,p]of points)if(onSegment(p,a,b))union(key(a),k);}}
  const grounds=circuit.components.filter(c=>c.type==='ground');if(!grounds.length)throw Error('Add a ground reference to your circuit.');
  grounds.forEach(c=>union(key(pins(c)[0]),key(pins(grounds[0])[0])));
  const ground=find(key(pins(grounds[0])[0]));const roots=[...new Set([...points.keys()].map(find))].filter(r=>r!==ground);
@@ -32,6 +34,7 @@ export function solve(circuit,{mode='dc',frequency=50,dt=0.001,time=0,history={}
  if(!circuit.components.some(c=>['voltage','ac','current'].includes(c.type)))throw Error('Add a voltage or current source to power your circuit.');
  if(mode==='ac'&&!(frequency>0))throw Error('AC frequency must be positive.');
  const top=topology(circuit),cs=circuit.components.filter(c=>c.type!=='ground');
+ for(const c of cs)if(c.unknown)throw Error('This circuit has undefined values. Open Homework to solve symbolically or provide known values.');
  for(const c of cs)if(!Number.isFinite(c.value)||(['resistor','capacitor','inductor'].includes(c.type)&&c.value<=0))throw Error('Component values must be finite; R, L, and C must be positive.');
  const branches=cs.filter(c=>['voltage','ac'].includes(c.type)||(c.type==='inductor'&&mode!=='ac'));
  const n=top.count+branches.length,A=Array.from({length:n},()=>Array.from({length:n},()=>z())),b=Array.from({length:n},()=>z());
