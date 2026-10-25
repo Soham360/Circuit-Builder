@@ -72,3 +72,15 @@ Nerdamer 2.0.0 is bundled from its npm distribution, with MIT license notices in
 ## Navigation and deployment
 
 The URL fragment selects the page, including direct links and reloads at #homework. Browser Back/Forward and fragment changes update the visible editor and navigation together. Production builds place all modules, styles, and worker dependencies in a content-versioned assets directory, so older cached scripts cannot mix with a newer page. Workers resolve relative to their module URL. The static build workflow is the single GitHub Pages publishing path.
+
+## Editor upgrades
+
+The workbench fills the viewport. Palette categories, inspector tabs, paged guides, and paged worked solutions keep controls available without a long page. Zoom and pan cover an open grid; component coordinates are not limited to the original drawing rectangle.
+
+Dependent sources use A → B output references. VCVS/VCCS sense a selected positive terminal minus a negative terminal; CCVS/CCCS sense the selected component's signed A → B current. Gain units are V/V, Ω, S, and A/A respectively. Numerical DC, AC, and transient analysis supports these models. Homework provides deterministic DC equations and can isolate an undefined gain.
+
+Breadboard view maps the current topology onto real five-hole terminal buses, with explicit jumpers and a paged wiring list. Large circuits use multiple boards. Power rails are unused. Ideal independent and dependent sources appear as external modules; this is a connectivity layout, not a transistor-level implementation of those ideal models.
+
+Resistors display four bands and their specified numeric resistance. Four-band codes use two significant digits; when the specified value needs rounding, the Bands inspector states both the encoded nominal and the exact circuit value. Unknown or out-of-range values use neutral bands. Visual tolerance does not randomize the simulation.
+
+Equations render locally with KaTeX 0.16.22's accessible MathML output. Worked pages include Copy LaTeX, and the complete derivation remains available through browser printing. KaTeX and Nerdamer are vendored with their licenses; no AI service or runtime CDN is used.

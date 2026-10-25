@@ -1,4 +1,4 @@
-import {pins,topology,solve} from './solver.js';
+import {pins,topology,solve,terminal,dependentTypes,voltageControlled,currentControlled} from './solver.js';
 
 // Deterministic DC modified nodal analysis. Algebra is supplied by the vendored
 // Nerdamer engine; no network requests, prompts, or language model are involved.
@@ -23,7 +23,7 @@ export function homework(circuit,query,n){
  const mul=(a,b)=>{if(a==='0'||b==='0')return '0';if(a==='1')return b;if(b==='1')return a;const [p,q]=fraction(a),[r,s]=fraction(b);return make('('+p+')*('+r+')','('+q+')*('+s+')');};
  const div=(a,b)=>{if(a==='0')return '0';if(b==='1')return a;const [p,q]=fraction(a),[r,s]=fraction(b);return make('('+p+')*('+s+')','('+q+')*('+r+')');};
 
- const branches=parts.filter(c=>['voltage','inductor'].includes(c.type));
+ const branches=parts.filter(c=>['voltage','current','inductor',...dependentTypes].includes(c.type));
  const vars=Array.from({length:top.count},(_,i)=>'N'+(i+1)).concat(branches.map((c,i)=>'J'+(i+1))),size=vars.length;
  if(!size)throw Error('Build a circuit with a source and at least one non-ground node.');
  const A=Array.from({length:size},()=>Array(size).fill('0')),b=Array(size).fill('0'),laws=[],nodeTerms=Array.from({length:top.count},()=>[]);
@@ -32,9 +32,13 @@ export function homework(circuit,query,n){
  const terms=(a,d,i)=>{if(a>=0)nodeTerms[a].push(i);if(d>=0)nodeTerms[d].push(`-(${i})`);};
  for(const c of parts){const [a,d]=pins(c).map(top.node),va=nodeName(a),vb=nodeName(d),v=value(c),drop=`(${va}-${vb})`;
  if(c.type==='resistor'||c.type==='switch'){const r=c.type==='switch'?(c.closed?'0.000001':'1000000000000'):v,g=div('1',r);stamp(a,a,g);stamp(d,d,g);stamp(a,d,neg(g));stamp(d,a,neg(g));terms(a,d,`${drop}/(${r})`);laws.push({id:c.id,law:`I(${c.id}) = ${drop} / (${r})`});}
- else if(c.type==='current'){rhs(a,neg(v));rhs(d,v);terms(a,d,v);laws.push({id:c.id,law:`I(${c.id}) = ${v}`});}
  else if(c.type==='capacitor')laws.push({id:c.id,law:`I(${c.id}) = 0 (open circuit at DC)`});
- else{const index=branches.indexOf(c),j=top.count+index,J=vars[j];stamp(a,j,'1');stamp(d,j,'-1');stamp(j,a,'1');stamp(j,d,'-1');rhs(j,c.type==='inductor'?'0':v);terms(a,d,J);laws.push({id:c.id,law:`${va} - ${vb} = ${c.type==='inductor'?'0':v}; ${J} = I(${c.id})`});}}
+ else{const index=branches.indexOf(c),j=top.count+index,J=vars[j],isCurrent=['current','vccs','cccs'].includes(c.type);stamp(a,j,'1');stamp(d,j,'-1');if(isCurrent)stamp(j,j,'1');else{stamp(j,a,'1');stamp(j,d,'-1');}terms(a,d,J);
+ if(voltageControlled(c)){const cp=top.node(terminal(circuit,c.controlPositive)),cn=top.node(terminal(circuit,c.controlNegative));stamp(j,cp,neg(v));stamp(j,cn,v);laws.push({id:c.id,law:`${isCurrent?J:va+' - '+vb} = (${v})*(${nodeName(cp)}-${nodeName(cn)}); ${J} = I(${c.id})`});}
+ else if(currentControlled(c)){const control=parts.find(p=>p.id===c.control);if(!control)throw Error('Choose a valid controlling branch in Properties.');if(branches.includes(control))stamp(j,top.count+branches.indexOf(control),neg(v));else if(control.type==='resistor'||control.type==='switch'){const [pa,pb]=pins(control).map(top.node),gain=div(v,control.type==='switch'?(control.closed?'0.000001':'1000000000000'):value(control));stamp(j,pa,neg(gain));stamp(j,pb,gain);}laws.push({id:c.id,law:`${isCurrent?J:va+' - '+vb} = (${v})*I(${control.id}); ${J} = I(${c.id})`});}
+ else if(c.type==='current'){rhs(j,v);laws.push({id:c.id,law:`${J} = I(${c.id}) = ${v}`});}
+ else{rhs(j,c.type==='inductor'?'0':v);laws.push({id:c.id,law:`${va} - ${vb} = ${c.type==='inductor'?'0':v}; ${J} = I(${c.id})`});}}}
+
  const reductions=[];
  for(let col=0;col<size;col++){let pivot=-1;for(let r=col;r<size;r++)if(A[r][col]!=='0'&&(pivot<0||A[r][col].length<A[pivot][col].length))pivot=r;
  if(pivot<0)throw Error('The circuit is underdetermined or inconsistent. Check floating terminals, unused wire islands, and ideal source loops.');
@@ -43,7 +47,7 @@ export function homework(circuit,query,n){
  for(let r=col+1;r<size;r++){if(A[r][col]==='0')continue;const f=div(A[r][col],A[col][col]);for(let j=col+1;j<size;j++)A[r][j]=simple(add(A[r][j],neg(mul(f,A[col][j]))));b[r]=simple(add(b[r],neg(mul(f,b[col]))));A[r][col]='0';}}
  const x=Array(size).fill('0');for(let r=size-1;r>=0;r--){let v=b[r];for(let j=r+1;j<size;j++)v=add(v,neg(mul(A[r][j],x[j])));x[r]=simple(div(v,A[r][r]));}
  const nodeExpression=id=>{if(id==='0'||id===-1)return '0';const i=Number(String(id).replace('N',''))-1;if(!Number.isInteger(i)||i<0||i>=top.count)throw Error('Choose a node from the circuit.');return x[i];};
- const componentExpression=(id,kind)=>{const c=parts.find(c=>c.id===id);if(!c)throw Error('Choose a component from the circuit.');const [a,d]=pins(c).map(top.node),v=simple(add(a<0?'0':x[a],neg(d<0?'0':x[d])));if(kind==='voltage')return v;if(kind==='unknown')return value(c);if(c.type==='resistor')return simple(div(v,value(c)));if(c.type==='capacitor')return '0';if(c.type==='switch')return simple(div(v,c.closed?'0.000001':'1000000000000'));if(c.type==='current')return value(c);return x[top.count+branches.indexOf(c)];};
+ const componentExpression=(id,kind)=>{const c=parts.find(c=>c.id===id);if(!c)throw Error('Choose a component from the circuit.');const [a,d]=pins(c).map(top.node),v=simple(add(a<0?'0':x[a],neg(d<0?'0':x[d])));if(kind==='voltage')return v;if(kind==='unknown')return value(c);if(c.type==='resistor')return simple(div(v,value(c)));if(c.type==='capacitor')return '0';if(c.type==='switch')return simple(div(v,c.closed?'0.000001':'1000000000000'));return x[top.count+branches.indexOf(c)];};
  const expressionFor=q=>q.kind==='node'?nodeExpression(q.nodeA):q.kind==='difference'?simple(add(nodeExpression(q.nodeA),neg(nodeExpression(q.nodeB)))):componentExpression(q.component,q.kind);
  let expression=expressionFor(query),candidates=[],condition=null,conditional=false;
  const numeric=expr=>{try{if(n(expr).variables().length)return null;const v=Number(n(expr).evaluate().toDecimal(14));return Number.isFinite(v)?v:null;}catch{return null;}};

@@ -4,9 +4,9 @@ import path from 'node:path';
 
 const root=process.cwd(),dist=path.resolve(root,'dist');
 if(path.dirname(dist)!==root||path.basename(dist)!=='dist')throw Error('Invalid build output directory');
-const files=['style.css','app.js','routing.js','solver.js','content.js','homework.js','homework-ui.js','homework-worker.js'];
+const files=['style.css','app.js','routing.js','solver.js','content.js','homework.js','homework-ui.js','homework-worker.js','resistor.js','breadboard.js','math.js','pagination.js'];
 const hash=createHash('sha256');
-for(const file of ['index.html',...files,'vendor/nerdamer.js'])hash.update(file).update(await readFile(file));
+for(const file of ['index.html',...files,'vendor/nerdamer.js','vendor/katex.min.js'])hash.update(file).update(await readFile(file));
 const revision=hash.digest('hex').slice(0,16),assetPath=`assets/${revision}`;
 // The verified dist/ directory contains generated output only.
 await rm(dist,{recursive:true,force:true});

@@ -30,31 +30,43 @@ function gaussian(A,b){
  for(let r=col+1;r<n;r++){const f=div(A[r][col],A[col][col]);if(magnitude(f)===0)continue;for(let j=col;j<n;j++)A[r][j]=add(A[r][j],neg(mul(f,A[col][j])));b[r]=add(b[r],neg(mul(f,b[col])));}}
  const x=Array.from({length:n},()=>z());for(let r=n-1;r>=0;r--){let v=b[r];for(let c=r+1;c<n;c++)v=add(v,neg(mul(A[r][c],x[c])));x[r]=div(v,A[r][r]);}return x;
 }
+export const dependentTypes=['vcvs','ccvs','vccs','cccs'];
+export const voltageControlled=c=>['vcvs','vccs'].includes(c.type);
+export const currentControlled=c=>['ccvs','cccs'].includes(c.type);
+export function terminal(circuit,ref){
+ if(typeof ref!=='string')throw Error('Choose the controlling + and − terminals in Properties.');
+ const split=ref.lastIndexOf(':'),c=circuit.components.find(c=>c.id===ref.slice(0,split)),pin=ref.slice(split+1)==='B'?1:0;
+ if(!c||!pins(c)[pin])throw Error('A controlling terminal is missing. Select valid terminals in Properties.');
+ return pins(c)[pin];
+}
 export function solve(circuit,{mode='dc',frequency=50,dt=0.001,time=0,history={}}={}){
- if(!circuit.components.some(c=>['voltage','ac','current'].includes(c.type)))throw Error('Add a voltage or current source to power your circuit.');
+ if(!circuit.components.some(c=>['voltage','ac','current',...dependentTypes].includes(c.type)))throw Error('Add a voltage or current source to your circuit.');
  if(mode==='ac'&&!(frequency>0))throw Error('AC frequency must be positive.');
  const top=topology(circuit),cs=circuit.components.filter(c=>c.type!=='ground');
- for(const c of cs)if(c.unknown)throw Error('This circuit has undefined values. Open Homework to solve symbolically or provide known values.');
- for(const c of cs)if(!Number.isFinite(c.value)||(['resistor','capacitor','inductor'].includes(c.type)&&c.value<=0))throw Error('Component values must be finite; R, L, and C must be positive.');
- const branches=cs.filter(c=>['voltage','ac'].includes(c.type)||(c.type==='inductor'&&mode!=='ac'));
- const n=top.count+branches.length,A=Array.from({length:n},()=>Array.from({length:n},()=>z())),b=Array.from({length:n},()=>z());
+ for(const c of cs){if(c.unknown)throw Error('This circuit has undefined values. Open Homework to solve symbolically or provide known values.');if(!Number.isFinite(c.value)||(['resistor','capacitor','inductor'].includes(c.type)&&c.value<=0))throw Error('Component values must be finite; R, L, and C must be positive.');}
+ const branches=cs.filter(c=>['voltage','ac','current',...dependentTypes].includes(c.type)||(c.type==='inductor'&&mode!=='ac'));
+ const branchIndex=c=>top.count+branches.indexOf(c);
+ const size=top.count+branches.length,A=Array.from({length:size},()=>Array.from({length:size},()=>z())),b=Array.from({length:size},()=>z());
  const stamp=(r,c,v)=>{if(r>=0&&c>=0)A[r][c]=add(A[r][c],v);};
  const rhs=(r,v)=>{if(r>=0)b[r]=add(b[r],v);};
  const adm=(a,d,g)=>{stamp(a,a,g);stamp(d,d,g);stamp(a,d,neg(g));stamp(d,a,neg(g));};
  const inj=(a,d,i)=>{rhs(a,neg(i));rhs(d,i);};
  const yFor=c=>c.type==='resistor'?z(1/c.value):c.type==='switch'?z(c.closed?1e6:1e-12):c.type==='capacitor'?mode==='ac'?z(0,2*Math.PI*frequency*c.value):mode==='transient'?z(c.value/dt):z():c.type==='inductor'&&mode==='ac'?z(0,-1/(2*Math.PI*frequency*c.value)):z();
- for(const c of cs){const [a,d]=pins(c).map(top.node);const g=yFor(c);adm(a,d,g);
- if(c.type==='capacitor'&&mode==='transient')inj(a,d,z(-c.value/dt*(history[c.id]?.v||0)));
- if(c.type==='current')inj(a,d,z(mode==='ac'?0:c.value));
- if(branches.includes(c)){const j=top.count+branches.indexOf(c);stamp(a,j,z(1));stamp(d,j,z(-1));stamp(j,a,z(1));stamp(j,d,z(-1));
- if(c.type==='inductor'){if(mode==='transient'){stamp(j,j,z(-c.value/dt));rhs(j,z(-c.value/dt*(history[c.id]?.i||0)));}}
- else{const v=mode==='ac'?(c.type==='ac'?z(c.value):z()):c.type==='ac'?z(mode==='transient'?c.value*Math.sin(2*Math.PI*(c.frequency||50)*time):0):z(c.value);rhs(j,v);}}
+ const offset=c=>c.type==='capacitor'&&mode==='transient'?z(-c.value/dt*(history[c.id]?.v||0)):z();
+ // Every ideal source has a branch-current unknown. This also lets a dependent
+ // source sense any component's signed current without inserting a fake resistor.
+ function currentLaw(id){const c=cs.find(c=>c.id===id);if(!c)throw Error('Choose a valid controlling branch in Properties.');if(branches.includes(c))return {terms:[[branchIndex(c),z(1)]],constant:z()};const [a,d]=pins(c).map(top.node),g=yFor(c);return {terms:[[a,g],[d,neg(g)]],constant:offset(c)};}
+ for(const c of cs){const [a,d]=pins(c).map(top.node),g=yFor(c);adm(a,d,g);inj(a,d,offset(c));if(!branches.includes(c))continue;
+ const j=branchIndex(c),isCurrent=['current','vccs','cccs'].includes(c.type);stamp(a,j,z(1));stamp(d,j,z(-1));
+ if(isCurrent)stamp(j,j,z(1));else{stamp(j,a,z(1));stamp(j,d,z(-1));}
+ if(voltageControlled(c)){const p=top.node(terminal(circuit,c.controlPositive)),n=top.node(terminal(circuit,c.controlNegative));stamp(j,p,z(-c.value));stamp(j,n,z(c.value));}
+ else if(currentControlled(c)){const law=currentLaw(c.control);for(const [col,k]of law.terms)stamp(j,col,mul(z(-c.value),k));rhs(j,mul(z(c.value),law.constant));}
+ else if(c.type==='inductor'){if(mode==='transient'){stamp(j,j,z(-c.value/dt));rhs(j,z(-c.value/dt*(history[c.id]?.i||0)));}}
+ else if(c.type==='current')rhs(j,z(mode==='ac'?0:c.value));
+ else rhs(j,mode==='ac'?(c.type==='ac'?z(c.value):z()):c.type==='ac'?z(mode==='transient'?c.value*Math.sin(2*Math.PI*(c.frequency||50)*time):0):z(c.value));
  }
  const solution=gaussian(A,b),voltage=p=>{const i=top.node(p);return i<0?z():solution[i];},results={},next={};
- for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),neg(voltage(pp[1])));let i=branches.includes(c)?solution[top.count+branches.indexOf(c)]:mul(yFor(c),v);
- if(c.type==='current')i=z(mode==='ac'?0:c.value);
- if(c.type==='capacitor'&&mode==='transient')i=add(i,z(-c.value/dt*(history[c.id]?.v||0)));
- results[c.id]={v,i,p:mul(v,z(i.re,-i.im))};next[c.id]={v:v.re,i:i.re};}
+ for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),neg(voltage(pp[1]))),i=branches.includes(c)?solution[branchIndex(c)]:add(mul(yFor(c),v),offset(c));results[c.id]={v,i,p:mul(v,z(i.re,-i.im))};next[c.id]={v:v.re,i:i.re};}
  return {results,history:next,voltage,topology:top};
 }
-export function transient(circuit,{duration=0.1,steps=300}={}){let history={},out=[];const dt=duration/steps;for(let k=1;k<=steps;k++){const t=k*dt;const s=solve(circuit,{mode:'transient',dt,time:t,history});history=s.history;out.push({time:t,...s});}return out;}
+export function transient(circuit,{duration=0.1,steps=300}={}){let history={},out=[];const dt=duration/steps;for(let k=1;k<=steps;k++){const t=k*dt,s=solve(circuit,{mode:'transient',dt,time:t,history});history=s.history;out.push({time:t,...s});}return out;}
