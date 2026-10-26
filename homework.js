@@ -1,3 +1,4 @@
+import {portEquivalent,loopAnalysis,sourceTransformation,waveformPower,powerBalance} from './network-analysis.js';
 import {equivalentResistance} from './equivalent.js';
 import {pins,topology,solve,terminal,dependentTypes,voltageControlled,currentControlled} from './solver.js';
 
@@ -5,7 +6,63 @@ import {pins,topology,solve,terminal,dependentTypes,voltageControlled,currentCon
 // Nerdamer engine; no network requests, prompts, or language model are involved.
 export function homework(circuit,query,n){
  if(!n)throw Error('The local algebra engine did not load. Reload the page.');
+ if(query.kind==='port')return {kind:'port',...portEquivalent(circuit,query)};
+ if(query.kind==='loops')return {kind:'loops',...loopAnalysis(circuit)};
+ if(query.kind==='transform')return {kind:'transform',...sourceTransformation(circuit,query.component)};
+ if(query.kind==='waveform')return {kind:'waveform',...waveformPower(query.voltage,query.current,query.options)};
+ if(query.kind==='balance')return {kind:'balance',...powerBalance(query.rows)};
  if(query.kind==='equivalent')return equivalentResistance(circuit,query,n);
+ if(query.kind==='constraints'){
+  const givens=query.measurements,unknown=circuit.components.filter(c=>c.unknown);
+  if(!Array.isArray(givens)||!givens.length||givens.length>8||!unknown.length)throw Error('Supply 1–8 measurements and mark the component values to determine as unknown.');
+  if(unknown.length>5)throw Error('Use at most five unknown values.');
+  const equations=givens.map(g=>{if(!['node','difference','voltage','current','power'].includes(g.kind)||!Number.isFinite(g.value))throw Error('Each measurement needs a voltage, current, or power target and a finite base-unit value.');const r=homework(circuit,g,n);const e=n(r.expression);return n(`expand((${e.numerator().toString()})-(${g.value})*(${e.denominator().toString()}))`).toString();});
+  const symbols=unknown.map((c,i)=>'U'+(i+1));
+  // Eliminate values that enter polynomial equations linearly, then solve a
+  // final polynomial of degree at most two. Denominator roots are checked
+  // against every original measurement before accepting a unique result.
+  let attempts=0;const started=Date.now();
+  const isolate=(eqs,remaining,chosen={})=>{
+   if(++attempts>64||Date.now()-started>10000)throw Error('Measurement elimination exceeded its limit. Define more values.');
+   if(!remaining.length)return [chosen];
+   if(remaining.length===1){
+    const symbol=remaining[0],e=eqs.find(e=>n(e).variables().includes(symbol));if(!e)return [];
+    let cs;try{cs=n('coeffs('+e+','+symbol+')').elements.map(c=>Number(n(c.toString()).evaluate().toDecimal(14)));}catch{return [];}
+    if(cs.some(c=>!Number.isFinite(c))||cs.length>3)return [];
+    const scale=Math.max(...cs.map(Math.abs));cs=cs.map(c=>c/scale);let roots=[];
+    if(cs.length===2&&cs[1]!==0)roots=[-cs[0]/cs[1]];
+    if(cs.length===3&&cs[2]!==0){const [c,b,a]=cs,d=b*b-4*a*c;if(d<0)return [];const q=-0.5*(b+(b<0?-1:1)*Math.sqrt(d));roots=q===0?[0]:[q/a,c/q];}
+    return [...new Set(roots)].map(value=>({...chosen,[symbol]:String(value)}));
+   }
+
+   for(const symbol of remaining){for(let i=0;i<eqs.length;i++){
+    if(!n(eqs[i]).variables().includes(symbol))continue;
+    let coeff;try{coeff=n('coeffs('+eqs[i]+','+symbol+')').elements.map(c=>c.toString());}catch{continue;}
+    if(coeff.length!==2||coeff[1]==='0')continue;
+    const [constant,linear]=coeff,expression=n('-('+constant+')/('+linear+')').toString();
+    const next=eqs.filter((_,j)=>j!==i).map(e=>{
+     const cs=n('coeffs('+e+','+symbol+')').elements.map(c=>c.toString()),degree=cs.length-1;
+     return n('expand('+cs.map((c,k)=>'('+c+')*(-('+constant+'))^'+k+'*('+linear+')^'+(degree-k)).join('+')+')').toString();
+    });
+    return isolate(next,remaining.filter(s=>s!==symbol),{...chosen,[symbol]:expression});
+   }}return [];
+  };
+  let candidates;try{candidates=isolate(equations,symbols);}catch{throw Error('The measurements could not be isolated within the algebra limits. Define more values.');}
+  const numericCandidates=candidates.map(candidate=>{
+   const values={};for(const symbol of symbols){let expression=candidate[symbol];for(let pass=0;pass<symbols.length;pass++)expression=n(expression,candidate).toString();values[symbol]=n(expression).variables().length?NaN:Number(n(expression).evaluate().toDecimal(14));}return values;
+  }).filter(values=>symbols.every((symbol,i)=>Number.isFinite(values[symbol])&&(unknown[i].type!=='resistor'||values[symbol]>0)));
+  const consistent=numericCandidates.filter(values=>{try{
+   const cc=structuredClone(circuit);unknown.forEach((c,i)=>Object.assign(cc.components.find(p=>p.id===c.id),{unknown:false,value:values[symbols[i]]}));const result=solve(cc),get=id=>id==='0'?0:result.voltage([...result.topology.points.values()].find(p=>result.topology.node(p)===Number(id.slice(1))-1)).re;
+   return givens.every(g=>{const actual=g.kind==='node'?get(g.nodeA):g.kind==='difference'?get(g.nodeA)-get(g.nodeB):result.results[g.component]?.[g.kind==='current'?'i':g.kind==='power'?'p':'v']?.re;return Number.isFinite(actual)&&Math.abs(actual-g.value)<=1e-6*Math.max(1e-3,Math.abs(g.value));});
+  }catch{return false;}});
+  if(consistent.length!==1)throw Error('The measurements do not isolate a unique physical solution. Supply independent measurements or define more values.');
+  const values=consistent[0];
+  const candidate=structuredClone(circuit);
+  for(const [i,c]of unknown.entries()){const value=values[symbols[i]];if(!Number.isFinite(value)||c.type==='resistor'&&value<=0)throw Error('No unique finite physical solution was found.');if(['capacitor','inductor','switch'].includes(c.type))throw Error('DC measurements cannot determine capacitance, inductance, or switch resistance.');Object.assign(candidate.components.find(p=>p.id===c.id),{value,unknown:false});}
+  solve(candidate);
+  for(const g of givens){const actual=homework(candidate,g,n).numeric;if(actual===null||Math.abs(actual-g.value)>1e-6*Math.max(1e-3,Math.abs(g.value)))throw Error('The solved values do not satisfy every measurement. Check rounding or conflicting givens.');}
+  return {kind:'constraints',equations,values:unknown.map((c,i)=>({id:c.id,type:c.type,value:values[symbols[i]],symbol:symbols[i]}))};
+ }
  if(circuit.components.length>24)throw Error('Worked symbolic solutions support up to 24 components. Split this problem into smaller networks.');
  const top=topology(circuit),parts=circuit.components.filter(c=>c.type!=='ground');
  if(top.count>16)throw Error('Worked solutions support up to 16 non-ground nodes.');
@@ -50,7 +107,7 @@ export function homework(circuit,query,n){
  const x=Array(size).fill('0');for(let r=size-1;r>=0;r--){let v=b[r];for(let j=r+1;j<size;j++)v=add(v,neg(mul(A[r][j],x[j])));x[r]=simple(div(v,A[r][r]));}
  const nodeExpression=id=>{if(id==='0'||id===-1)return '0';const i=Number(String(id).replace('N',''))-1;if(!Number.isInteger(i)||i<0||i>=top.count)throw Error('Choose a node from the circuit.');return x[i];};
  const componentExpression=(id,kind)=>{const c=parts.find(c=>c.id===id);if(!c)throw Error('Choose a component from the circuit.');const [a,d]=pins(c).map(top.node),v=simple(add(a<0?'0':x[a],neg(d<0?'0':x[d])));if(kind==='voltage')return v;if(kind==='unknown')return value(c);if(c.type==='resistor')return simple(div(v,value(c)));if(c.type==='capacitor')return '0';if(c.type==='switch')return simple(div(v,c.closed?'0.000001':'1000000000000'));return x[top.count+branches.indexOf(c)];};
- const expressionFor=q=>q.kind==='node'?nodeExpression(q.nodeA):q.kind==='difference'?simple(add(nodeExpression(q.nodeA),neg(nodeExpression(q.nodeB)))):componentExpression(q.component,q.kind);
+ const expressionFor=q=>q.kind==='node'?nodeExpression(q.nodeA):q.kind==='difference'?simple(add(nodeExpression(q.nodeA),neg(nodeExpression(q.nodeB)))):q.kind==='power'?mul(componentExpression(q.component,'voltage'),componentExpression(q.component,'current')):componentExpression(q.component,q.kind);
  let expression=expressionFor(query),candidates=[],condition=null,conditional=false;
  const numeric=expr=>{try{if(n(expr).variables().length)return null;const v=Number(n(expr).evaluate().toDecimal(14));return Number.isFinite(v)?v:null;}catch{return null;}};
  const present=expr=>{const [p,q]=fraction(expr);return make(p,q);};
@@ -61,11 +118,11 @@ export function homework(circuit,query,n){
  if(!n(residual).variables().includes(symbol))throw Error(residual==='0'?'This measurement is satisfied independently of the selected unknown. Add an independent measurement.':'This measurement does not determine the selected unknown, or conflicts with the other given values.');
  let roots;try{roots=n.solve(`${observed}=(${query.given.value})`,symbol).elements;}catch{throw Error('This constraint could not be isolated algebraically. Define more values or use a different measurement.');}
  for(const root of roots){const candidate=root.toString(),num=numeric(candidate);if(num!==null&&c.type==='resistor'&&num<=0)continue;let check;try{check=simple(n(residual,{[symbol]:candidate}).toString());}catch{continue;}let exact=check==='0';if(!exact){try{exact=n(check).numerator().expand().toString()==='0';}catch{}}const err=numeric(check);if(!exact&&(err===null||Math.abs(err)>1e-8*Math.max(1,Math.abs(query.given.value))))continue;
- if(num!==null&&unknowns.length===1){try{const cc=structuredClone(circuit),part=cc.components.find(p=>p.id===c.id);part.unknown=false;part.value=num;const solved=solve(cc);let actual;if(query.given.kind==='node'||query.given.kind==='difference'){const get=id=>id==='0'?0:solved.voltage([...top.points.values()].find(p=>top.node(p)===Number(id.slice(1))-1)).re;actual=get(query.given.nodeA)-(query.given.kind==='difference'?get(query.given.nodeB):0);}else actual=solved.results[query.given.component][query.given.kind==='current'?'i':'v'].re;if(Math.abs(actual-query.given.value)>1e-7*Math.max(1,Math.abs(query.given.value)))continue;}catch{continue;}}
+ if(num!==null&&unknowns.length===1){try{const cc=structuredClone(circuit),part=cc.components.find(p=>p.id===c.id);part.unknown=false;part.value=num;const solved=solve(cc);let actual;if(query.given.kind==='node'||query.given.kind==='difference'){const get=id=>id==='0'?0:solved.voltage([...top.points.values()].find(p=>top.node(p)===Number(id.slice(1))-1)).re;actual=get(query.given.nodeA)-(query.given.kind==='difference'?get(query.given.nodeB):0);}else actual=solved.results[query.given.component][query.given.kind==='current'?'i':query.given.kind==='power'?'p':'v'].re;if(Math.abs(actual-query.given.value)>1e-7*Math.max(1,Math.abs(query.given.value)))continue;}catch{continue;}}
  candidates.push({expression: simple(candidate),numeric:num});}
  if(!candidates.length)throw Error('No verified physical solution was found. The measurement may be inconsistent or require a non-positive resistance.');expression=candidates.map(c=>c.expression).join(' OR ');conditional=candidates.some(c=>c.numeric===null);
  }
  expression=query.kind==='unknown'?expression:present(expression);
  const nodes=Array.from({length:top.count},(_,i)=>({name:'N'+(i+1),expression:present(x[i]),numeric:numeric(x[i]),terminals:circuit.components.flatMap(c=>pins(c).map((p,j)=>top.node(p)===i?`${c.id}.${j?'B':'A'}`:null)).filter(Boolean)}));
- return {expression,numeric:query.kind==='unknown'?candidates.length===1?candidates[0].numeric:null:numeric(expression),candidates,conditional,condition,unknowns:unknowns.map(c=>({id:c.id,symbol:symbols[c.id],type:c.type})),knowns:parts.filter(c=>!c.unknown).map(c=>({id:c.id,type:c.type,value:c.value})),nodes,laws,kcl:nodeTerms.map((t,i)=>({node:'N'+(i+1),equation:(t.join(' + ')||'0')+' = 0'})),reductions,solutions:vars.map((v,i)=>({variable:v,expression:present(x[i]),numeric:numeric(x[i])})),target:query,substitution:query.kind==='node'?query.nodeA:query.kind==='difference'?`${query.nodeA} - ${query.nodeB}`:query.kind==='current'?`I(${query.component})`:query.kind==='unknown'?symbols[query.component]:parts.find(c=>c.id===query.component)?pins(parts.find(c=>c.id===query.component)).map(top.node).map(nodeName).join(' - '):'',elapsed:Date.now()-begun};
+ return {expression,numeric:query.kind==='unknown'?candidates.length===1?candidates[0].numeric:null:numeric(expression),candidates,conditional,condition,unknowns:unknowns.map(c=>({id:c.id,symbol:symbols[c.id],type:c.type})),knowns:parts.filter(c=>!c.unknown).map(c=>({id:c.id,type:c.type,value:c.value})),nodes,laws,kcl:nodeTerms.map((t,i)=>({node:'N'+(i+1),equation:(t.join(' + ')||'0')+' = 0'})),reductions,solutions:vars.map((v,i)=>({variable:v,expression:present(x[i]),numeric:numeric(x[i])})),target:query,substitution:query.kind==='node'?query.nodeA:query.kind==='difference'?`${query.nodeA} - ${query.nodeB}`:query.kind==='current'?`I(${query.component})`:query.kind==='power'?`P(${query.component})`:query.kind==='unknown'?symbols[query.component]:parts.find(c=>c.id===query.component)?pins(parts.find(c=>c.id===query.component)).map(top.node).map(nodeName).join(' - '):'',elapsed:Date.now()-begun};
 }

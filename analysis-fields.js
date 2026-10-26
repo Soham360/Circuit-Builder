@@ -1,0 +1,43 @@
+const $=id=>document.getElementById(id);
+const numeric=input=>input.value.trim()===''?NaN:Number(input.value);
+const numberField=(label,value,className)=>`<label class="field-label">${label}<input class="${className}" type="number" step="any" value="${value}"></label>`;
+
+function syncOptions(select,source){const value=select.value;select.innerHTML=source.innerHTML;if([...select.options].some(o=>o.value===value))select.value=value;}
+function measurementRow(given={kind:'node',value:0}){
+ const row=document.createElement('fieldset');row.className='analysis-measurement';
+ row.innerHTML=`<legend>Known measurement</legend><label class="field-label">Quantity<select class="measurement-kind"><option value="node">Node potential (V)</option><option value="difference">Voltage between nodes (V)</option><option value="voltage">Component voltage (V)</option><option value="current">Branch current (A)</option><option value="power">Component power (W)</option></select></label><label class="field-label measurement-part-label">Component<select class="measurement-part"></select></label><label class="field-label measurement-node-label">Positive node<select class="measurement-a"></select></label><label class="field-label measurement-b-label">Reference node<select class="measurement-b"></select></label>${numberField('Known value · V, A or W',given.value,'measurement-value')}<button type="button" class="button remove-measurement">Remove measurement</button>`;
+ const get=selector=>row.querySelector(selector);syncOptions(get('.measurement-part'),$('hw-component'));for(const s of ['.measurement-a','.measurement-b'])syncOptions(get(s),$('hw-node-a'));
+ get('.measurement-kind').value=given.kind;for(const [field,selector]of [['component','.measurement-part'],['nodeA','.measurement-a'],['nodeB','.measurement-b']])if(given[field])get(selector).value=given[field];
+ const fields=()=>{const kind=get('.measurement-kind').value,nodes=['node','difference'].includes(kind);get('.measurement-part-label').hidden=nodes;get('.measurement-node-label').hidden=!nodes;get('.measurement-b-label').hidden=kind!=='difference';};get('.measurement-kind').onchange=fields;get('.remove-measurement').onclick=()=>row.remove();fields();return row;
+}
+export function setMeasurements(measurements){const list=$('measurement-list');if(list)list.replaceChildren(...measurements.map(measurementRow));}
+function waveTerm(list,amplitude=0,rate=0){const row=document.createElement('div');row.className='wave-term';row.innerHTML=`${numberField('Amplitude',amplitude,'term-amplitude')}${numberField('Decay rate (/s)',rate,'term-rate')}<button type="button" class="button" aria-label="Remove exponential term">×</button>`;row.querySelector('button').onclick=()=>row.remove();list.append(row);}
+function balanceRow(list,{id='',voltage=0,current=0,sign=1}={}){const row=document.createElement('fieldset');row.className='balance-row';row.innerHTML=`<legend>Element</legend><label class="field-label">Name<input class="balance-id"></label>${numberField('Voltage (V)',voltage,'balance-voltage')}${numberField('Current (A)',current,'balance-current')}<label class="field-label">Current enters<select class="balance-sign"><option value="1">Positive voltage terminal</option><option value="-1">Negative voltage terminal</option></select></label><button type="button" class="button">Remove element</button>`;row.querySelector('.balance-id').value=id;row.querySelector('.balance-sign').value=String(sign);row.querySelector('button').onclick=()=>row.remove();list.append(row);}
+
+export function installAnalysisFields(form){
+ const kinds=$('hw-kind');for(const [value,label]of [['power','Component power (absorbed / delivered)'],['port','Thévenin / Norton at a load'],['loops','Loop currents, KCL / KVL and power balance'],['transform','Source transformation'],['constraints','Several known measurements'],['waveform','Time-dependent power and energy'],['balance','Power table with chosen references']])kinds.add(new Option(label,value));
+ $('hw-target').insertAdjacentHTML('beforeend','<div id="analysis-extra"></div>');let previous='';
+ return ()=>{
+  const kind=kinds.value;if(previous===kind){form.querySelectorAll('.measurement-part').forEach(s=>syncOptions(s,$('hw-component')));form.querySelectorAll('.measurement-a,.measurement-b').forEach(s=>syncOptions(s,$('hw-node-a')));return;}previous=kind;const extra=$('analysis-extra');extra.replaceChildren();
+  if(kind==='port')extra.innerHTML='<p class="small">Choose the load resistor above. It is detached for open, short and 1 V test-source calculations. Dependent sources remain active. Its value verifies the loaded equivalent.</p>';
+  if(kind==='loops')extra.innerHTML='<p class="small">Independent loop currents use a spanning-tree basis. The branch table shows how to combine them. These loops can span several faces of the drawing.</p>';
+  if(kind==='transform')extra.innerHTML='<p class="small">Choose an independent DC source above. A parallel resistor or an unbranched series resistor is required. The result gives the replacement values and their references.</p>';
+  if(kind==='constraints'){
+   extra.innerHTML='<div id="measurement-list"></div><button type="button" class="button" id="add-measurement">＋ Add measurement</button><p class="small">Mark the values to find as unknown. Enter each measured voltage, current or power in base units. Every measurement is checked after solving.</p>';setMeasurements([{kind:'node',nodeA:$('hw-node-a').value,value:0}]);$('add-measurement').onclick=()=>{$('measurement-list').append(measurementRow());};
+  }
+  if(kind==='waveform'){
+   extra.innerHTML=`<h3>Voltage terms · volts</h3><div id="wave-voltage"></div><button type="button" class="button" id="add-voltage-term">＋ Voltage term</button><h3>Current terms · amperes</h3><div id="wave-current"></div><button type="button" class="button" id="add-current-term">＋ Current term</button><label class="field-label" for="wave-sign">Current reference</label><select id="wave-sign"><option value="1">Enters positive voltage terminal</option><option value="-1">Enters negative voltage terminal</option></select><label class="field-label" for="wave-time">Power at time (s)</label><input id="wave-time" type="number" value="0.001" step="any"><label class="field-label" for="wave-start">Energy from (s)</label><input id="wave-start" type="number" value="0" step="any"><label class="field-label" for="wave-end">Energy to (s or Infinity)</label><input id="wave-end" value="0.001"><p class="small">Each term is amplitude × exp(−rate × t). Rate 0 is constant. Signals are zero before t = 0. This calculation uses your entered waveforms independently of the schematic.</p>`;
+   for(const [id,terms]of [['voltage',[[1,500],[-1,1500]]],['current',[[0.03,0],[-0.04,500],[0.01,1500]]]]){const list=$('wave-'+id);terms.forEach(([a,r])=>waveTerm(list,a,r));$('add-'+id+'-term').onclick=()=>waveTerm(list);}
+  }
+  if(kind==='balance'){
+   extra.innerHTML='<div id="balance-list"></div><button type="button" class="button" id="add-balance-row">＋ Add element</button><p class="small">Use the reference polarity and arrow for each element. Positive power is absorbed. This table is independent of the schematic.</p>';
+   const volts=[6,10,-8,-2,-2,4,-6,2],currents=[0.5,0.1,-0.4,0.3,0.3,-0.2,0.2,-0.4],signs=[1,-1,-1,-1,1,-1,-1,1];volts.forEach((voltage,i)=>balanceRow($('balance-list'),{id:'abcdefgh'[i],voltage,current:currents[i],sign:signs[i]}));$('add-balance-row').onclick=()=>balanceRow($('balance-list'));
+  }
+ };
+}
+export function analysisQuery(kind){
+ if(kind==='constraints')return {measurements:[...document.querySelectorAll('.analysis-measurement')].map(row=>({kind:row.querySelector('.measurement-kind').value,component:row.querySelector('.measurement-part').value,nodeA:row.querySelector('.measurement-a').value,nodeB:row.querySelector('.measurement-b').value,value:numeric(row.querySelector('.measurement-value'))}))};
+ if(kind==='balance')return {rows:[...document.querySelectorAll('.balance-row')].map(row=>({id:row.querySelector('.balance-id').value,voltage:numeric(row.querySelector('.balance-voltage')),current:numeric(row.querySelector('.balance-current')),sign:Number(row.querySelector('.balance-sign').value)}))};
+ if(kind==='waveform'){const terms=id=>[...$(id).querySelectorAll('.wave-term')].map(row=>[numeric(row.querySelector('.term-amplitude')),numeric(row.querySelector('.term-rate'))]);return {voltage:terms('wave-voltage'),current:terms('wave-current'),options:{time:numeric($('wave-time')),start:numeric($('wave-start')),end:numeric($('wave-end')),sign:Number($('wave-sign').value)}};}
+ return {};
+}

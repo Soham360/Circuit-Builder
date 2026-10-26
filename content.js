@@ -1,3 +1,4 @@
+import {homeworkCircuits} from './homework-circuits.js';
 const c=(id,type,x,y,rot,value,extra={})=>({id,type,x,y,rot,value,...extra});
 const w=(...a)=>({points:a.map(([x,y])=>({x,y}))});
 const ground=()=>c('GND','ground',144,480,0,0);
@@ -8,6 +9,7 @@ const parallel={components:[c('V1','voltage',144,288,90,12),c('R1','resistor',38
 const ac=loop('capacitor',1e-6);ac.components[0].type='ac';ac.components[0].value=5;ac.components[0].frequency=100;
 const sw=loop();sw.components.push(c('S1','switch',384,480,0,1,{closed:true}));sw.wires.pop();sw.wires.push(w([624,336],[624,480],[432,480]),w([336,480],[144,480],[144,336]));
 export const templates=[
+
 {id:'bridge',name:'Wheatstone bridge',category:'DC NETWORKS',level:'Intermediate',description:'Balance two voltage dividers to measure an unknown resistance.',lesson:'bridge',data:bridge,mode:'dc'},
 {id:'divider',name:'Voltage divider',category:'START HERE',level:'Beginner',description:'Create a smaller output voltage using two resistors.',lesson:'divider',data:loop(),mode:'dc'},
 {id:'parallel',name:'Parallel resistors',category:'DC NETWORKS',level:'Beginner',description:'Explore current division and equivalent resistance.',lesson:'series',data:parallel,mode:'dc'},
@@ -15,6 +17,7 @@ export const templates=[
 {id:'rl',name:'RL step response',category:'TIME DOMAIN',level:'Intermediate',description:'See an inductor resist a sudden change in current.',lesson:'rl',data:loop('inductor',1),mode:'transient',duration:0.005},
 {id:'filter',name:'RC low-pass filter',category:'AC ANALYSIS',level:'Intermediate',description:'Compare input and output amplitude and phase.',lesson:'ac',data:ac,mode:'ac'},
 {id:'switch',name:'A simple switched loop',category:'START HERE',level:'Beginner',description:'Open and close a switch to control current.',lesson:'ohm',data:sw,mode:'dc'}];
+templates.push(...homeworkCircuits);
 const mit='https://ocw.mit.edu/courses/6-071j-introduction-to-electronics-signals-and-measurement-spring-2006/resources/linear_crct_ana/';
 const rcSource='https://openstax.org/books/university-physics-volume-2/pages/10-5-rc-circuits';
 export const lessons=[
