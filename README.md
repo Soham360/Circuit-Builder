@@ -137,3 +137,7 @@ Lengths count both end holes: a 3-hole wire joins columns 1 and 3. The center ch
 | Bare | 2 |
 
 The router can join multiple kit wires through free terminal strips while preserving every electrical net and component position. Colors identify kit lengths in Lab mode; the Net selector still highlights connections. **Wiring list → Jumpers & lengths** lists every jumper, its kit name, length, and endpoint holes. Manual wiring also enforces the kit. If a placement cannot be routed, the app reports it instead of substituting an unsupported wire. No quantity limits are assumed because inventory counts were not provided.
+
+### Visible breadboard connections
+
+Dashed lines show the breadboard's internal metal strips, including intermediate columns used to join two kit jumpers. Every jumper endpoint has a visible strip; hover over a strip or select a jumper to see the exact connected holes and parts. Orange rings and a connection status flag unconnected ends in manually edited wiring. Generated layouts reject reused holes, isolated wires, and unconnected ends, and omit unused relay branches. Older Lab layouts are rerouted on reload; inconsistent saved connections are regenerated from the schematic.

@@ -1,3 +1,4 @@
+import {assertGeneratedConnections,jumperConnectionProblems} from './breadboard-connections.js';
 import {busKey,holeKey,boardColumns,rows,boardGraph} from './breadboard-model.js';
 // Lengths count both end holes: a 3-hole wire connects positions 1 and 3.
 export const labWireKit=[
@@ -17,11 +18,10 @@ export function dressLabWire(w){const kit=labWireFor(w.from,w.to);if(!kit)throw 
 export function validLabPlan(plan){return plan.jumpers.every(w=>{const kit=labWireFor(w.from,w.to);return kit&&w.holes===kit.holes&&w.color===kit.color&&w.kitName===kit.name;});}
 export function setLabWireMode(original,enabled){
  if(!enabled){const next=structuredClone(original);next.labMode=false;for(const w of next.jumpers){delete w.kitName;delete w.holes;delete w.bare;w.color=next.nets.find(n=>n.node===w.node)?.color||'#668153';}return next;}
- if(original.labMode&&validLabPlan(original))return structuredClone(original);
+ if(original.labMode&&original.labRoutingVersion===2&&validLabPlan(original)&&(!jumperConnectionProblems(original).length||original.jumpers.some(w=>w.kind==='manual')))return structuredClone(original);
  const plan=structuredClone(original),graph=boardGraph(original),owner=new Map(),targets=new Map(),holesByBus=new Map();
  const put=(h)=>{const key=busKey(h),net=graph.root(h);owner.set(key,net);if(!targets.has(net))targets.set(net,new Map());targets.get(net).set(key,h);};
  for(const p of plan.ports)put(p.hole);
- for(const w of plan.jumpers){put(w.from);put(w.to);}
  for(const r of plan.references)put(r.hole);
  for(let board=0;board<plan.boardCount;board++)for(let column=1;column<=boardColumns;column++)for(const row of rows+'pnqr'){
   const h={board,column,row},key=busKey(h);if(!holesByBus.has(key))holesByBus.set(key,[]);holesByBus.get(key).push(h);
@@ -64,5 +64,5 @@ export function setLabWireMode(original,enabled){
    }
   }
  }
- plan.jumpers=jumpers;plan.labMode=true;return plan;
+ plan.jumpers=jumpers;plan.labMode=true;plan.labRoutingVersion=2;assertGeneratedConnections(plan);return plan;
 }
