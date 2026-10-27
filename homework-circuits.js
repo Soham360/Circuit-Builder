@@ -1,6 +1,6 @@
 // Original editable transcriptions. Coordinates follow each drawing; A/B references
 // are explicit in each edge. Course PDFs are not bundled in the application.
-const make=(id,name,nodes,edges,description,query)=>{
+export const make=(id,name,nodes,edges,description,query)=>{
  const pts=Object.fromEntries(Object.entries(nodes).map(([id,[x,y]])=>[id,{x:96+144*x,y:96+144*y}])),wires=[];
  const components=edges.map(([id,type,value,a,b,extra={}])=>{let p=pts[a],q=pts[b];const {via,...rest}=extra;if(via){const center={x:96+144*via[0],y:96+144*via[1]};p={x:center.x-48,y:center.y};q={x:center.x+48,y:center.y};wires.push({points:[pts[a],p]},{points:[q,pts[b]]});}const dx=q.x-p.x,dy=q.y-p.y,distance=Math.hypot(dx,dy),x=(p.x+q.x)/2,y=(p.y+q.y)/2;if(distance>96+1e-6){const pa={x:x-48*dx/distance,y:y-48*dy/distance},pb={x:x+48*dx/distance,y:y+48*dy/distance};wires.push({points:[p,pa]},{points:[pb,q]});}return {id,type,value:value??1,unknown:value===null,x,y,length:Math.min(96,distance),rot:Math.atan2(dy,dx)*180/Math.PI,...rest};});
  components.push({id:'GND',type:'ground',...pts['0'],value:0,rot:0});

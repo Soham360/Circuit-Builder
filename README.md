@@ -103,6 +103,16 @@ The Thévenin/Norton tool detaches the selected load, measures open-circuit volt
 
 See [HOMEWORK-COVERAGE.md](HOMEWORK-COVERAGE.md) for the problem-by-problem mapping, assumptions for unspecified elements, the experimental resistance estimate, reference directions and calculation limits.
 
+## EE 215 Lab 2
+
+Open **EE 215 · Lab 2 tools** above the workspace or filter the circuit library by **EE 215 Lab 2**. Four editable presets cover Figures P1-1, P2-1 (AA and potato models), and P3-1. All work in schematic and breadboard views.
+
+- Procedure 1: node voltage solution, mesh / loop equations, and comparison of measured load voltage and downward current with the ideal model.
+- Procedure 2: enter actual open-circuit voltage, short-circuit current in mA, and measured series resistance for both batteries. The tool draws equivalents with and without the series resistor and compares delivery to the same load. Battery preset values are illustrative, not experimental readings. Keep the series resistor in place for short-circuit measurements.
+- Procedure 3: detach RLoad mathematically for Voc, Isc, and source-deactivated Rth; compare 5 kΩ, 10 kΩ and 20 kΩ load power; find the continuous maximum; and adjust a 100 kΩ rheostat model (1 Ω to 100 kΩ). Pins 2 and 3 are strapped at b, and pin 1 connects to a. The ideal zero-ohm short is computed by port analysis.
+
+The tools operate on the current circuit using a resistor named RLoad as the output port. Recalculate after edits. Physical measurements must be entered by the user. For P3-1, nominal values give Vth = 6.613636 V, Rth = 10.022727 kΩ, Isc = 0.659864 mA; the 10 kΩ load is best among the specified three.
+
 ## Lab wire kit
 
 In Breadboard view, check **Lab** to route jumpers using only this kit. The preference persists across reloads and circuit changes. Uncheck it to allow arbitrary straight wire lengths and net colors again.

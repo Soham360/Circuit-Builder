@@ -1,3 +1,4 @@
+import {labCircuits} from './lab-circuits.js';
 import {homeworkCircuits} from './homework-circuits.js';
 const c=(id,type,x,y,rot,value,extra={})=>({id,type,x,y,rot,value,...extra});
 const w=(...a)=>({points:a.map(([x,y])=>({x,y}))});
@@ -17,7 +18,7 @@ export const templates=[
 {id:'rl',name:'RL step response',category:'TIME DOMAIN',level:'Intermediate',description:'See an inductor resist a sudden change in current.',lesson:'rl',data:loop('inductor',1),mode:'transient',duration:0.005},
 {id:'filter',name:'RC low-pass filter',category:'AC ANALYSIS',level:'Intermediate',description:'Compare input and output amplitude and phase.',lesson:'ac',data:ac,mode:'ac'},
 {id:'switch',name:'A simple switched loop',category:'START HERE',level:'Beginner',description:'Open and close a switch to control current.',lesson:'ohm',data:sw,mode:'dc'}];
-templates.push(...homeworkCircuits);
+templates.push(...homeworkCircuits,...labCircuits);
 const mit='https://ocw.mit.edu/courses/6-071j-introduction-to-electronics-signals-and-measurement-spring-2006/resources/linear_crct_ana/';
 const rcSource='https://openstax.org/books/university-physics-volume-2/pages/10-5-rc-circuits';
 export const lessons=[
