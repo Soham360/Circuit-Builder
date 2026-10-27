@@ -1,3 +1,4 @@
+import {tidySchematicWires} from './schematic-layout.js';
 import {topology,nodeLabels,pins,terminal,voltageControlled,dependentTypes,key} from './solver.js';
 export const boardColumns=60;
 export const rows='abcdefghij',netColors=['#394b49','#d35c48','#5088ac','#b5993b','#8a69a3','#5f996d','#d17c42','#5c9d9b'];
@@ -56,7 +57,7 @@ export function circuitFromBreadboard(circuit,edited){
  const at=r=>pins(next.components.find(c=>c.id===r.id))[r.pin],all=[...clusters.values()].flat().map(at),privateXs=new Set(),minY=Math.min(...all.map(p=>p.y)),wires=[];let serial=0,net=0;const near=(a,b)=>Math.abs(a-b)<1e-5;
  // Private off-grid lanes keep unrelated crossings away from junction endpoints.
  for(const refs of clusters.values()){const lane=minY-72-(net++)*24.031,entries=refs.map(r=>{const p=at(r),component=next.components.find(c=>c.id===r.id),cos=Math.cos((component.rot||0)*Math.PI/180),direction=(r.pin?1:-1)*(Math.abs(cos)>.1?Math.sign(cos):1),gaps=all.filter(q=>near(q.y,p.y)&&direction*(q.x-p.x)>1e-5).map(q=>Math.abs(q.x-p.x)),limit=Math.min(96,...gaps)/3;let x=p.x+direction*limit*(.75+(++serial%701)/10000);while(all.some(q=>near(q.x,x))||[...privateXs].some(v=>near(v,x)))x+=direction*limit*.00073;privateXs.add(x);return{p,x};});for(let i=1;i<entries.length;i++){const a=entries[0],b=entries[i];wires.push({points:[a.p,{x:a.x,y:a.p.y},{x:a.x,y:lane},{x:b.x,y:lane},{x:b.x,y:b.p.y},b.p],routing:'orthogonal'});}}
- next.wires=wires;for(const c of next.components.filter(voltageControlled)){for(const [pin,field]of [['C+','controlPositive'],['C−','controlNegative']]){const p=plan.ports.find(p=>p.component===c.id&&p.pin===pin),candidate=plan.ports.find(q=>(q.pin==='A'||q.pin==='B')&&graph.root(q.hole)===graph.root(p.hole));c[field]=candidate?candidate.component+':'+candidate.pin:'';}}
+ next.wires=tidySchematicWires(next,clusters)??wires;for(const c of next.components.filter(voltageControlled)){for(const [pin,field]of [['C+','controlPositive'],['C−','controlNegative']]){const p=plan.ports.find(p=>p.component===c.id&&p.pin===pin),candidate=plan.ports.find(q=>(q.pin==='A'||q.pin==='B')&&graph.root(q.hole)===graph.root(p.hole));c[field]=candidate?candidate.component+':'+candidate.pin:'';}}
  refreshLabels(plan,next);plan.signature=signature(next);next.breadboard=plan;
  // Verify every physical connection against the schematic after routing.
  const t=topology(next),roots=new Map(),logical=new Map();for(const [root,refs]of clusters)for(const r of refs){const n=t.node(at(r));if(roots.has(root)&&roots.get(root)!==n||logical.has(n)&&logical.get(n)!==root)throw Error('The schematic could not preserve these breadboard connections.');roots.set(root,n);logical.set(n,root);}return next;
