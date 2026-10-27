@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {templates} from '../content.js';
 import {solve} from '../solver.js';
 import {breadboardPlan,auditBreadboard,circuitFromBreadboard,addBoardWire,holeKey,busKey} from '../breadboard-model.js';
+import {wireIntersections} from '../breadboard-connections.js';
 import {labWireKit,labWireFor,setLabWireMode,validLabPlan} from '../lab-wires.js';
 const hole=(column,row='b')=>({board:0,column,row});
 test('the exact user kit counts both endpoints and uses 51-hole long green',()=>{
@@ -16,7 +17,7 @@ test('the exact user kit counts both endpoints and uses 51-hole long green',()=>
 });
 for(const template of templates)test(template.id+': kit routes retain every net, free hole and solver result',()=>{
  const c=structuredClone(template.data),normal=breadboardPlan(c),lab=setLabWireMode(normal,true);
- assert.ok(auditBreadboard(lab));assert.ok(validLabPlan(lab));assert.equal(normal.labMode,undefined);
+ assert.ok(auditBreadboard(lab));assert.ok(validLabPlan(lab));assert.deepEqual(wireIntersections(lab),[]);assert.equal(normal.labMode,undefined);
  assert.deepEqual(lab.ports,normal.ports);
  const occupied=new Set(lab.ports.map(p=>holeKey(p.hole)));
  for(const w of lab.jumpers)for(const h of [w.from,w.to]){assert.ok(!occupied.has(holeKey(h)),w.id+' reuses '+holeKey(h));occupied.add(holeKey(h));}

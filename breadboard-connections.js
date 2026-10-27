@@ -1,5 +1,15 @@
 import {busKey,holeKey,position,rows,boardGraph,validHole} from './breadboard-model.js';
 
+export function jumpersIntersect(a,b){
+ if(a.from.board!==b.from.board)return false;
+ const p=position(a.from),q=position(a.to),r=position(b.from),s=position(b.to);
+ const between=(x,a,b)=>x>=Math.min(a,b)&&x<=Math.max(a,b);
+ if(p.y===q.y&&r.y===s.y)return p.y===r.y&&Math.max(Math.min(p.x,q.x),Math.min(r.x,s.x))<=Math.min(Math.max(p.x,q.x),Math.max(r.x,s.x));
+ if(p.x===q.x&&r.x===s.x)return p.x===r.x&&Math.max(Math.min(p.y,q.y),Math.min(r.y,s.y))<=Math.min(Math.max(p.y,q.y),Math.max(r.y,s.y));
+ if(p.y===q.y)return between(r.x,p.x,q.x)&&between(p.y,r.y,s.y);
+ return between(p.x,r.x,s.x)&&between(r.y,p.y,q.y);
+}
+export function wireIntersections(plan){const result=[];for(let i=0;i<plan.jumpers.length;i++)for(let j=i+1;j<plan.jumpers.length;j++)if(jumpersIntersect(plan.jumpers[i],plan.jumpers[j]))result.push([plan.jumpers[i].id,plan.jumpers[j].id]);return result;}
 // Include relay strips used only by jumpers, not just strips with component legs.
 export function boardConnections(plan){
  const graph=boardGraph(plan),groups=new Map(),portNodes=new Map();
@@ -24,6 +34,7 @@ export function assertGeneratedConnections(plan){
   occupied.add(holeKey(h));
  }
  for(const w of plan.jumpers){if(w.from.board!==w.to.board||w.from.column!==w.to.column&&w.from.row!==w.to.row)throw Error('Generated jumper must connect two aligned holes on one board.');}
+ const crossings=wireIntersections(plan);if(crossings.length)throw Error('Generated breadboard has intersecting jumpers: '+crossings.map(pair=>pair.join(' / ')).join(', '));
  const problems=jumperConnectionProblems(plan);
  if(problems.length)throw Error('Generated breadboard has an unconnected jumper: '+problems.map(p=>p.wire).filter((id,i,a)=>a.indexOf(id)===i).join(', '));
  return true;

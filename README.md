@@ -141,3 +141,5 @@ The router can join multiple kit wires through free terminal strips while preser
 ### Visible breadboard connections
 
 Dashed lines show the breadboard's internal metal strips, including intermediate columns used to join two kit jumpers. Every jumper endpoint has a visible strip; hover over a strip or select a jumper to see the exact connected holes and parts. Orange rings and a connection status flag unconnected ends in manually edited wiring. Generated layouts reject reused holes, isolated wires, and unconnected ends, and omit unused relay branches. Older Lab layouts are rerouted on reload; inconsistent saved connections are regenerated from the schematic.
+
+Breadboard jumpers cannot cross, touch, or overlap other jumpers, even on the same electrical net. Routing checks both existing wires and all segments of a proposed route. Manual wire drawing rejects intersections, generated plans are checked before display, and older crossing layouts are regenerated when reopened. Dashed internal metal-strip indicators are not jumper wires.

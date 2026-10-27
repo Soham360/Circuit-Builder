@@ -1,4 +1,4 @@
-import {assertGeneratedConnections,jumperConnectionProblems} from './breadboard-connections.js';
+import {assertGeneratedConnections,jumperConnectionProblems,jumpersIntersect,wireIntersections} from './breadboard-connections.js';
 import {busKey,holeKey,boardColumns,rows,boardGraph} from './breadboard-model.js';
 // Lengths count both end holes: a 3-hole wire connects positions 1 and 3.
 export const labWireKit=[
@@ -18,7 +18,7 @@ export function dressLabWire(w){const kit=labWireFor(w.from,w.to);if(!kit)throw 
 export function validLabPlan(plan){return plan.jumpers.every(w=>{const kit=labWireFor(w.from,w.to);return kit&&w.holes===kit.holes&&w.color===kit.color&&w.kitName===kit.name;});}
 export function setLabWireMode(original,enabled){
  if(!enabled){const next=structuredClone(original);next.labMode=false;for(const w of next.jumpers){delete w.kitName;delete w.holes;delete w.bare;w.color=next.nets.find(n=>n.node===w.node)?.color||'#668153';}return next;}
- if(original.labMode&&original.labRoutingVersion===2&&validLabPlan(original)&&(!jumperConnectionProblems(original).length||original.jumpers.some(w=>w.kind==='manual')))return structuredClone(original);
+ if(original.labMode&&original.labRoutingVersion===3&&validLabPlan(original)&&!wireIntersections(original).length&&(!jumperConnectionProblems(original).length||original.jumpers.some(w=>w.kind==='manual')))return structuredClone(original);
  const plan=structuredClone(original),graph=boardGraph(original),owner=new Map(),targets=new Map(),holesByBus=new Map();
  const put=(h)=>{const key=busKey(h),net=graph.root(h);owner.set(key,net);if(!targets.has(net))targets.set(net,new Map());targets.get(net).set(key,h);};
  for(const p of plan.ports)put(p.hole);
@@ -27,12 +27,7 @@ export function setLabWireMode(original,enabled){
   const h={board,column,row},key=busKey(h);if(!holesByBus.has(key))holesByBus.set(key,[]);holesByBus.get(key).push(h);
  }
  const occupied=new Set(plan.ports.map(p=>holeKey(p.hole))),jumpers=[];
- const overlap=(a,b)=>jumpers.some(w=>{
-  if(w.from.board!==a.board)return false;
-  if(a.row===b.row&&w.from.row===w.to.row&&a.row===w.from.row)return Math.min(Math.max(a.column,b.column),Math.max(w.from.column,w.to.column))>Math.max(Math.min(a.column,b.column),Math.min(w.from.column,w.to.column));
-  if(a.column===b.column&&w.from.column===w.to.column&&a.column===w.from.column)return Math.min(Math.max(rowPitch[a.row],rowPitch[b.row]),Math.max(rowPitch[w.from.row],rowPitch[w.to.row]))>Math.max(Math.min(rowPitch[a.row],rowPitch[b.row]),Math.min(rowPitch[w.from.row],rowPitch[w.to.row]));
-  return false;
- });
+ const overlap=(from,to,extra=[])=>[...jumpers,...extra].some(w=>jumpersIntersect({from,to},w));
  const candidates=(from)=>{
   const result=[];for(const kit of labWireKit){const span=kit.holes-1;for(const direction of [-1,1]){const column=from.column+direction*span;if(column>=1&&column<=boardColumns)result.push({...from,column});}
    for(const row of rows+'pnqr')if(Math.abs(rowPitch[row]-rowPitch[from.row])===span)result.push({...from,row});
@@ -50,7 +45,7 @@ export function setLabWireMode(original,enabled){
     for(const from of holesByBus.get(state.bus)||[]){
      if(occupied.has(holeKey(from))||state.arrival&&holeKey(from)===holeKey(state.arrival))continue;
      for(const to of candidates(from)){
-      const bus=busKey(to);if(bus===state.bus||connected.has(bus)||occupied.has(holeKey(to))||owner.has(bus)&&owner.get(bus)!==net||state.path.some(w=>busKey(w.from)===bus)||overlap(from,to))continue;
+      const bus=busKey(to);if(bus===state.bus||connected.has(bus)||occupied.has(holeKey(to))||owner.has(bus)&&owner.get(bus)!==net||state.path.some(w=>busKey(w.from)===bus)||overlap(from,to,state.path))continue;
       const cost=state.cost+1000+labWireFor(from,to).holes,k=bus+'|'+holeKey(to);if(best.has(k)&&best.get(k)<=cost)continue;
       best.set(k,cost);queue.push({bus,arrival:to,cost,path:[...state.path,{from,to}]});
      }
@@ -64,5 +59,5 @@ export function setLabWireMode(original,enabled){
    }
   }
  }
- plan.jumpers=jumpers;plan.labMode=true;plan.labRoutingVersion=2;assertGeneratedConnections(plan);return plan;
+ plan.jumpers=jumpers;plan.labMode=true;plan.labRoutingVersion=3;assertGeneratedConnections(plan);return plan;
 }

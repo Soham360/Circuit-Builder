@@ -30,7 +30,7 @@ test('checks reject detached wire islands and reused endpoint holes',()=>{
 test('cached lab routing is repaired instead of retaining stale dangling branches',()=>{
  const p=relayPlan();p.labMode=true;p.labRoutingVersion=1;p.jumpers.push(dressLabWire({id:'Stub',node:0,from:h(6,'a'),to:h(9,'a')}));
  assert.ok(jumperConnectionProblems(p).length);
- const fixed=setLabWireMode(p,true);assert.equal(fixed.labRoutingVersion,2);assert.deepEqual(jumperConnectionProblems(fixed),[]);assertGeneratedConnections(fixed);
+ const fixed=setLabWireMode(p,true);assert.equal(fixed.labRoutingVersion,3);assert.deepEqual(jumperConnectionProblems(fixed),[]);assertGeneratedConnections(fixed);
  assert.equal(boardGraph(fixed).root(fixed.ports[0].hole),boardGraph(fixed).root(fixed.ports[1].hole));
 });
 for(const template of templates)for(const lab of [false,true])test(template.id+(lab?' lab':' normal')+': every generated end is useful and represented by its physical bus',()=>{
