@@ -102,3 +102,28 @@ Use **Circuit library → Homework 1–4** for editable versions of all 19 circu
 The Thévenin/Norton tool detaches the selected load, measures open-circuit voltage and ideal short-circuit current, and calculates resistance using a 1 V test with independent sources zeroed and dependent sources retained. It shows both equivalent diagrams and verifies loaded voltage/current. Source transformation results identify a valid resistor partner, replacement value, polarity and connection; successive edits are made in the workspace. Loop currents use an independent cycle basis, which can span multiple planar meshes.
 
 See [HOMEWORK-COVERAGE.md](HOMEWORK-COVERAGE.md) for the problem-by-problem mapping, assumptions for unspecified elements, the experimental resistance estimate, reference directions and calculation limits.
+
+## Lab wire kit
+
+In Breadboard view, check **Lab** to route jumpers using only this kit. The preference persists across reloads and circuit changes. Uncheck it to allow arbitrary straight wire lengths and net colors again.
+
+Lengths count both end holes: a 3-hole wire joins columns 1 and 3. The center channel spans four pitches; power rails use the board's nominal 0.1-inch pitch layout. Battery leads are attached source leads, separate from breadboard jumpers.
+
+| Wire | Holes |
+| --- | ---: |
+| Long green | 51 |
+| Long yellow | 41 |
+| Long orange | 31 |
+| Long red | 21 |
+| Brown | 11 |
+| White | 10 |
+| Gray | 9 |
+| Purple | 8 |
+| Blue | 7 |
+| Short green | 6 |
+| Short yellow | 5 |
+| Short orange | 4 |
+| Short red | 3 |
+| Bare | 2 |
+
+The router can join multiple kit wires through free terminal strips while preserving every electrical net and component position. Colors identify kit lengths in Lab mode; the Net selector still highlights connections. **Wiring list → Jumpers & lengths** lists every jumper, its kit name, length, and endpoint holes. Manual wiring also enforces the kit. If a placement cannot be routed, the app reports it instead of substituting an unsupported wire. No quantity limits are assumed because inventory counts were not provided.
