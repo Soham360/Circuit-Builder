@@ -33,7 +33,7 @@ test('screenshot breadboard preserves every explicitly transcribed junction',()=
  for(const [id,result]of Object.entries(before.results)){assert.ok(Math.abs(result.v.re-after.results[id].v.re)<1e-8,id);assert.ok(Math.abs(result.i.re-after.results[id].i.re)<1e-8,id);}
  const links=p.jumpers.filter(w=>w.kind==='strip-link');
  assert.ok(links.length>1);
- for(const a of links)for(const b of links)if(a.node!==b.node)assert.notEqual(a.lane,b.lane,'Unrelated nets need separate horizontal wire lanes');
+ for(const wire of links){assert.equal(jumperRoute(wire).length,2);assert.equal(wire.from.row,wire.to.row);}
 });
 
 test('breadboard uses the same junction names as the schematic',()=>{const c=structuredClone(screenshotCircuit);c.junctionNames={'432,144':'v_1','720,144':'v_2','1008,144':'v_3','720,432':'v_4','1008,336':'v_5'};const p=breadboardPlan(c);for(const name of Object.values(c.junctionNames))assert.ok(p.nets.some(n=>n.name===name),name);const restored=breadboardPlan(circuitFromBreadboard(c,p));assert.deepEqual(restored.nets.map(n=>n.name).sort(),p.nets.map(n=>n.name).sort());});
