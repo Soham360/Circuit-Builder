@@ -1,3 +1,4 @@
+import {isContact,isDiode,isVariable,effectiveResistance} from './devices.js';
 // Ideal linear circuit solver. Branch current is positive from terminal A to B.
 const z=(re=0,im=0)=>({re,im});
 const add=(a,b)=>z(a.re+b.re,a.im+b.im);
@@ -39,11 +40,13 @@ export function terminal(circuit,ref){
  if(!c||!pins(c)[pin])throw Error('A controlling terminal is missing. Select valid terminals in Properties.');
  return pins(c)[pin];
 }
-export function solve(circuit,{mode='dc',frequency=50,dt=0.001,time=0,history={}}={}){
+export function solve(circuit,{mode='dc',frequency=50,dt=0.001,time=0,history={},diodeStates=null,iteration=0}={}){
  if(!circuit.components.some(c=>['voltage','ac','current',...dependentTypes].includes(c.type)))throw Error('Add a voltage or current source to your circuit.');
  if(mode==='ac'&&!(frequency>0))throw Error('AC frequency must be positive.');
+ const nonlinear=circuit.components.filter(isDiode);if(mode==='ac'&&nonlinear.length)throw Error('LEDs and diodes support DC and transient analysis. AC small-signal analysis is not available.');
+ diodeStates??=Object.fromEntries(nonlinear.map(c=>[c.id,false]));
  const top=topology(circuit),cs=circuit.components.filter(c=>c.type!=='ground');
- for(const c of cs){if(c.unknown)throw Error('This circuit has undefined values. Open Homework to solve symbolically or provide known values.');if(!Number.isFinite(c.value)||(['resistor','capacitor','inductor'].includes(c.type)&&c.value<=0))throw Error('Component values must be finite; R, L, and C must be positive.');}
+ for(const c of cs){if(c.unknown)throw Error('This circuit has undefined values. Open Homework to solve symbolically or provide known values.');if(!Number.isFinite(c.value)||(['resistor','capacitor','inductor','potentiometer','led','diode'].includes(c.type)&&c.value<=0))throw Error('Component values must be finite; resistance, inductance, capacitance and diode forward voltage must be positive.');}
  const branches=cs.filter(c=>['voltage','ac','current',...dependentTypes].includes(c.type)||(c.type==='inductor'&&mode!=='ac'));
  const branchIndex=c=>top.count+branches.indexOf(c);
  const size=top.count+branches.length,A=Array.from({length:size},()=>Array.from({length:size},()=>z())),b=Array.from({length:size},()=>z());
@@ -51,8 +54,8 @@ export function solve(circuit,{mode='dc',frequency=50,dt=0.001,time=0,history={}
  const rhs=(r,v)=>{if(r>=0)b[r]=add(b[r],v);};
  const adm=(a,d,g)=>{stamp(a,a,g);stamp(d,d,g);stamp(a,d,neg(g));stamp(d,a,neg(g));};
  const inj=(a,d,i)=>{rhs(a,neg(i));rhs(d,i);};
- const yFor=c=>c.type==='resistor'?z(1/c.value):c.type==='switch'?z(c.closed?1e6:1e-12):c.type==='capacitor'?mode==='ac'?z(0,2*Math.PI*frequency*c.value):mode==='transient'?z(c.value/dt):z():c.type==='inductor'&&mode==='ac'?z(0,-1/(2*Math.PI*frequency*c.value)):z();
- const offset=c=>c.type==='capacitor'&&mode==='transient'?z(-c.value/dt*(history[c.id]?.v||0)):z();
+ const yFor=c=>(c.type==='resistor'||isVariable(c)||isContact(c))?z(1/effectiveResistance(c)):isDiode(c)?z(diodeStates[c.id]?1/10:1e-9):c.type==='capacitor'?mode==='ac'?z(0,2*Math.PI*frequency*c.value):mode==='transient'?z(c.value/dt):z():c.type==='inductor'&&mode==='ac'?z(0,-1/(2*Math.PI*frequency*c.value)):z();
+ const offset=c=>isDiode(c)?z(diodeStates[c.id]?-c.value/10:0):c.type==='capacitor'&&mode==='transient'?z(-c.value/dt*(history[c.id]?.v||0)):z();
  // Every ideal source has a branch-current unknown. This also lets a dependent
  // source sense any component's signed current without inserting a fake resistor.
  function currentLaw(id){const c=cs.find(c=>c.id===id);if(!c)throw Error('Choose a valid controlling branch in Properties.');if(branches.includes(c))return {terms:[[branchIndex(c),z(1)]],constant:z()};const [a,d]=pins(c).map(top.node),g=yFor(c);return {terms:[[a,g],[d,neg(g)]],constant:offset(c)};}
@@ -67,6 +70,9 @@ export function solve(circuit,{mode='dc',frequency=50,dt=0.001,time=0,history={}
  }
  const solution=gaussian(A,b),voltage=p=>{const i=top.node(p);return i<0?z():solution[i];},results={},next={};
  for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),neg(voltage(pp[1]))),i=branches.includes(c)?solution[branchIndex(c)]:add(mul(yFor(c),v),offset(c));results[c.id]={v,i,p:mul(v,z(i.re,-i.im))};next[c.id]={v:v.re,i:i.re};}
+ const updated=Object.fromEntries(nonlinear.map(c=>[c.id,results[c.id].v.re>c.value+1e-9]));
+ if(nonlinear.some(c=>updated[c.id]!==diodeStates[c.id])){if(iteration>=80)throw Error('Diode model did not converge. Check source polarity and add series resistance.');return solve(circuit,{mode,frequency,dt,time,history,diodeStates:updated,iteration:iteration+1});}
+ for(const c of nonlinear)results[c.id].lit=c.type==='led'&&results[c.id].i.re>1e-4;
  return {results,history:next,voltage,topology:top};
 }
 export function transient(circuit,{duration=0.1,steps=300}={}){let history={},out=[];const dt=duration/steps;for(let k=1;k<=steps;k++){const t=k*dt,s=solve(circuit,{mode:'transient',dt,time:t,history});history=s.history;out.push({time:t,...s});}return out;}

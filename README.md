@@ -15,7 +15,7 @@ Open http://127.0.0.1:4173. Alternatively, run `npm run dev` if npm is installed
 ## Features
 
 - Drag or tap to add components, snap-to-grid movement, two-click wiring with default 90° / 180° routing, direct segments, custom first-segment angles, and draggable wire handles, rotation, duplication, deletion, undo/redo, panning, and zoom.
-- Resistors, capacitors, inductors, independent DC voltage/current sources, sinusoidal voltage sources, switches, and ground.
+- Resistors, capacitors, inductors, LEDs, diodes, adjustable potentiometers (two-terminal rheostat mode), momentary pushbuttons, latching switches, independent DC voltage/current sources, sinusoidal voltage sources, and ground.
 - DC operating points, AC phasor analysis, and fixed-step transient simulation. Results show voltage, current, and power; transients include a probe chart.
 - Seven classic editable templates plus 19 course circuits from Homework 1–4: Wheatstone bridge, divider, parallel resistors, RC charging, RL step response, RC low-pass filter, and switched loop.
 - Nine guides with formulas, worked examples, experiments, quizzes, and primary educational references.
@@ -38,7 +38,7 @@ DC capacitors are open circuits; DC inductors are ideal shorts. Transients use b
 
 AC analysis solves one frequency at a time with complex impedances. Source values and result magnitudes are **peak**, not RMS. DC voltage sources become shorts and DC current sources become opens in AC. Real average power is Re(V × conjugate(I))/2. The AC analysis frequency is global; the source frequency property applies only to time simulation.
 
-Closed switches have 1 microohm resistance, open switches 1 teraohm. No nonlinear devices, semiconductors, op-amps, parasitics, temperature, or physical safety ratings are modeled. Linear dependent sources are supported. Floating terminals and conflicting ideal sources produce errors. Very ill-conditioned networks can exceed numerical precision. This is an educational linear-circuit lab, not a replacement for SPICE or lab measurements.
+Closed switches have 1 microohm resistance, open switches 1 teraohm. LEDs and diodes use a piecewise-linear DC/transient model: editable forward voltage, 10 ohm dynamic resistance, and 1 gigaohm reverse leakage. They do not model breakdown, thermal behavior, or small-signal AC. No op-amps, parasitics, temperature, or physical safety ratings are modeled. Linear dependent sources are supported. Floating terminals and conflicting ideal sources produce errors. Very ill-conditioned networks can exceed numerical precision. This is an educational linear-circuit lab, not a replacement for SPICE or lab measurements.
 
 ## Validate and build
 
@@ -143,3 +143,11 @@ The router can join multiple kit wires through free terminal strips while preser
 Dashed lines show the breadboard's internal metal strips, including intermediate columns used to join two kit jumpers. Every jumper endpoint has a visible strip; hover over a strip or select a jumper to see the exact connected holes and parts. Orange rings and a connection status flag unconnected ends in manually edited wiring. Generated layouts reject reused holes, isolated wires, and unconnected ends, and omit unused relay branches. Older Lab layouts are rerouted on reload; inconsistent saved connections are regenerated from the schematic.
 
 Breadboard jumpers cannot cross, touch, or overlap other jumpers, even on the same electrical net. Routing checks both existing wires and all segments of a proposed route. Manual wire drawing rejects intersections, generated plans are checked before display, and older crossing layouts are regenerated when reopened. Dashed internal metal-strip indicators are not jumper wires.
+
+## Interactive parts and display
+
+LED and diode A terminals are anodes; B terminals are cathodes. In Workspace, Run calculates conduction; an LED schematic turns red above 0.1 mA. Add a series resistor. These approximate models support DC and transient analysis; unsupported AC and symbolic Homework requests produce an explanation.
+
+The potentiometer is wired as a two-terminal rheostat, rather than a three-terminal divider. Set maximum resistance and adjust the wiper slider in Properties. Its minimum modeled resistance is 1 milliohm. Pushbuttons are normally open: hold the Properties button with pointer, Space, or Enter to close, and release to reopen. DC results update while pressing and releasing. Switches retain their existing latching open/closed control. Saved/exported pushbuttons always return to the released state.
+
+The breadboard layout keeps a readable Components column; long lists scroll vertically on desktop and horizontally on mobile. Toolbar icons use inline SVG rather than uncommon font glyphs. Shared interactive-device predicates, symbols, and resistance calculations live in devices.js.

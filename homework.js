@@ -5,6 +5,7 @@ import {pins,topology,solve,terminal,dependentTypes,voltageControlled,currentCon
 // Deterministic DC modified nodal analysis. Algebra is supplied by the vendored
 // Nerdamer engine; no network requests, prompts, or language model are involved.
 export function homework(circuit,query,n){
+ if(circuit.components.some(c=>['led','diode','potentiometer','button'].includes(c.type)))throw Error('Use Run in Workspace for LEDs, diodes, potentiometers and pushbuttons. Symbolic Homework currently supports the original linear components.');
  if(!n)throw Error('The local algebra engine did not load. Reload the page.');
  if(query.kind==='port')return {kind:'port',...portEquivalent(circuit,query)};
  if(query.kind==='loops')return {kind:'loops',...loopAnalysis(circuit)};

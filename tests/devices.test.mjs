@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {solve,transient} from '../solver.js';
+import {templates} from '../content.js';
+import {breadboardPlan,circuitFromBreadboard,auditBreadboard} from '../breadboard-model.js';
+import {effectiveResistance} from '../devices.js';
+import {homework} from '../homework.js';
+const loop=(type,value,extra={})=>{const c=structuredClone(templates.find(t=>t.id==='divider').data);Object.assign(c.components.find(c=>c.id==='R2'),{type,value,...extra});return c;};
+const near=(a,b,t=1e-8)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
+test('LED forward drop includes dynamic resistance and conserves power',()=>{const c=loop('led',2),s=solve(c);near(s.results.R2.i.re,8/1010);near(s.results.R2.v.re,2+10*8/1010);assert.equal(s.results.R2.lit,true);near(Object.values(s.results).reduce((sum,r)=>sum+r.p.re,0),0);});
+test('reversed LED blocks current and stays dark',()=>{const c=loop('led',2);c.components.find(c=>c.id==='R2').rot+=180;const s=solve(c);assert.ok(Math.abs(s.results.R2.i.re)<1e-7);assert.equal(s.results.R2.lit,false);});
+test('diode threshold and current-source-driven conduction',()=>{const c=loop('diode',.7),s=solve(c);near(s.results.R2.i.re,9.3/1010);c.components.find(c=>c.id==='V1').type='current';c.components.find(c=>c.id==='V1').value=-.005;near(solve(c).results.R2.i.re,.005);});
+test('LED transient uses the same conduction model at each time step',()=>{for(const p of transient(loop('led',2),{duration:.01,steps:5}))near(p.results.R2.i.re,8/1010);});
+test('LED AC analysis fails explicitly instead of pretending to be linear',()=>assert.throws(()=>solve(loop('led',2),{mode:'ac'}),/DC and transient/));
+test('potentiometer position controls effective resistance with a finite end stop',()=>{for(const position of [0,.25,.5,1]){const c=loop('potentiometer',10000,{position}),r=Math.max(.001,10000*position);near(effectiveResistance(c.components.find(c=>c.id==='R2')),r);near(solve(c).results.R2.i.re,10/(1000+r));}assert.throws(()=>solve(loop('potentiometer',10000,{position:2})),/position/);});
+test('normally-open button conducts only while pressed',()=>{const c=loop('button',1,{closed:false});assert.ok(solve(c).results.R2.i.re<1e-9);c.components.find(c=>c.id==='R2').closed=true;near(solve(c).results.R2.i.re,10/(1000+1e-6));});
+for(const [type,value] of [['led',2],['diode',.7],['button',1],['potentiometer',10000]])test(`${type} preserves electrical behavior through breadboard conversion`,()=>{const c=loop(type,value,{position:.25,closed:true}),p=breadboardPlan(c);assert.ok(auditBreadboard(p));near(solve(circuitFromBreadboard(c,p)).results.R2.i.re,solve(c).results.R2.i.re);assert.throws(()=>homework(c,{kind:'current',component:'R2'},{}),/Workspace/);});
