@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {looseEnd,moveAttached,connectionIssues} from '../ux.js';
+import {pins,topology} from '../solver.js';
+import {parseEngineeringValue} from '../values.js';
+const c=()=>({components:[{id:'G',type:'ground',x:0,y:0},{id:'R1',type:'resistor',value:1000,x:48,y:48,rot:0}],wires:[{points:[{x:0,y:0},{x:0,y:48}]},{points:[{x:96,y:48},{x:144,y:48}]}]});
+test('only a free endpoint starts wire continuation',()=>{const d=c();assert.equal(looseEnd(d,{x:144,y:48}),true);assert.equal(looseEnd(d,{x:96,y:48}),false);d.wires.push({points:[{x:144,y:0},{x:144,y:96}]});assert.equal(looseEnd(d,{x:144,y:48}),false);});
+test('moving a part stretches both attached wires and preserves its grounded net',()=>{const d=c(),r=d.components[1];moveAttached(d,r,96,96);assert.deepEqual(d.wires[0].points.at(-1),pins(r)[0]);assert.deepEqual(d.wires[1].points[0],pins(r)[1]);assert.equal(topology(d).node(pins(r)[0]),-1);assert.deepEqual(d.wires[1].points.at(-1),{x:144,y:48});});
+test('diagnostics identify missing ground, loose pins, and shorted sources',()=>{assert.ok(connectionIssues({components:[],wires:[]}).some(i=>i.message.includes('ground')));assert.ok(connectionIssues(c()).every(i=>!i.message.includes('unconnected')));const d=c();d.components[1].type='voltage';d.wires.push({points:pins(d.components[1])});assert.ok(connectionIssues(d).some(i=>i.message.includes('shorted')));});
+test('capacitor and inductor values accept unit suffixes',()=>{assert.equal(parseEngineeringValue('100nF'),1.0000000000000001e-7);assert.equal(parseEngineeringValue('10mH'),.01);assert.equal(parseEngineeringValue('4.7k'),4700);});
+test('moving a pin shared with another component keeps the original connection',()=>{const d=c();d.components.push({id:'R2',type:'resistor',value:500,x:144,y:48,rot:0});moveAttached(d,d.components[1],48,96);const t=topology(d);assert.equal(t.node(pins(d.components[1])[1]),t.node(pins(d.components[2])[0]));});

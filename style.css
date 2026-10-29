@@ -131,3 +131,31 @@ body[data-view=breadboard] .lab-layout{grid-template-columns:190px minmax(0,1fr)
 @media(max-width:650px){.board-controls label,.board-controls select,.board-controls .button,.board-navigation,.board-zoom span,.board-edit-tools button{font-size:10px}.board-controls{gap:5px}.board-navigation{height:auto;min-height:30px}.board-foot{font-size:9px}}
 
 @media(max-width:650px){.palette .component-item small{display:none}#breadboard-view{overflow-y:auto}#breadboard-canvas{min-height:150px;flex-shrink:0}.board-foot{max-height:72px;overflow-y:auto;flex-shrink:0}}
+/* Circuit editing feedback */
+.net-hover {filter:drop-shadow(0 0 3px #168fbd);stroke:#087fa8!important;stroke-width:4!important}
+.connection-issue circle {fill:none;stroke:#c66a2c;stroke-width:2;stroke-dasharray:3 3}
+.connection-issue {pointer-events:all}
+.linked-selection {filter:drop-shadow(0 0 4px #087fa8)}
+.inline-value-editor {position:fixed;z-index:100;width:170px;padding:10px;border:2px solid #087fa8;background:white;border-radius:6px}
+.palette,.right-column {position:relative;flex-shrink:0}
+.panel-resizer {position:absolute;right:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:5;touch-action:none}
+.right-column>.panel-resizer {right:auto;left:-4px}
+.panel-resizer:focus,.panel-resizer:hover {background:#087fa844}
+body.palette-collapsed .palette,body.inspector-collapsed .right-column {display:none!important}
+.saved-project {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}
+.saved-project svg {width:100px;height:65px;background:#f1f3ed}
+.saved-project input {max-width:180px}
+.comparison-row {display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid #ddd}
+.comparison-row input {width:140px}
+#modal-content {max-height:75vh;overflow:auto}
+@media(max-width:850px){.panel-resizer{display:none}}
+.head-actions {flex-wrap:wrap;justify-content:flex-end;max-width:70%}
+@media(min-width:851px){
+.lab-layout{grid-template-columns:var(--palette-width,190px) minmax(0,1fr) var(--inspector-width,250px)}
+body[data-view=breadboard] .lab-layout{grid-template-columns:var(--palette-width,190px) minmax(0,1fr)}
+body.palette-collapsed .lab-layout{grid-template-columns:minmax(0,1fr) var(--inspector-width,250px)}
+body.inspector-collapsed .lab-layout{grid-template-columns:var(--palette-width,190px) minmax(0,1fr)}
+body.palette-collapsed.inspector-collapsed .lab-layout,body[data-view=breadboard].palette-collapsed .lab-layout{grid-template-columns:minmax(0,1fr)}
+body[data-view=breadboard] .right-column{width:var(--inspector-width,250px)}
+}
+@media(max-width:850px){.head-actions{max-width:100%}.palette,.right-column{width:auto!important;min-width:0!important}}
