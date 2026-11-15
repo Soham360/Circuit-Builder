@@ -15,3 +15,25 @@ test('closed and open switches limit current',()=>{const c=get('switch');near(so
 test('floating and shorted ideal sources produce useful errors',()=>{const c=get('divider');c.wires=[];assert.throws(()=>solve(c),/cannot be solved/);const b=get('divider');b.wires.push({points:[{x:144,y:240},{x:144,y:336}]});assert.throws(()=>solve(b),/cannot be solved/);});
 test('missing ground and invalid resistance are rejected',()=>{const c=get('divider');c.components=c.components.filter(c=>c.type!=='ground');assert.throws(()=>solve(c),/ground/);const b=get('divider');b.components[1].value=0;assert.throws(()=>solve(b),/positive/);});
 test('DC current source orientation and resistor load',()=>{const c=get('parallel');c.components[0].type='current';c.components[0].value=-.018;const s=solve(c);near(s.results.R1.v.re,12);near(s.results.R1.i.re,.012);});
+
+test('wire-only groups have no voltage equation in DC or transient analysis',()=>{
+ const circuit=get('divider');
+ const points=[{x:-100,y:-100},{x:-50,y:-100}];
+ const expected=solve(circuit).results.R1.v.re;
+ circuit.wires.push({points});
+ const dc=solve(circuit);
+ near(dc.results.R1.v.re,expected);
+ assert.ok(Number.isNaN(dc.voltage(points[0]).re));
+ const samples=transient(circuit,{steps:2});
+ near(samples[1].results.R1.v.re,expected);
+ assert.equal(samples[0].topology,samples[1].topology);
+});
+
+test('a 5 fA source across 200 teraohms develops one volt',()=>{
+ const circuit={components:[
+  {id:'I1',type:'current',value:5e-15,x:48,y:0,rot:0},
+  {id:'R1',type:'resistor',value:2e14,x:48,y:0,rot:0},
+  {id:'GND',type:'ground',x:0,y:0}
+ ],wires:[]};
+ near(Math.abs(solve(circuit).results.R1.v.re),1);
+});
