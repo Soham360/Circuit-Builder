@@ -1,6 +1,10 @@
 import {isContact,isDiode,isVariable,effectiveResistance} from './devices.js';
 // Ideal linear circuit solver. Branch current is positive from terminal A to B.
 const z=(re=0,im=0)=>({re,im});
+function requireFinite(value){
+ if(!Number.isFinite(value.re)||!Number.isFinite(value.im))throw Error('Circuit values are outside the numerical range.');
+ return value;
+}
 const add=(a,b)=>z(a.re+b.re,a.im+b.im);
 const neg=a=>z(-a.re,-a.im);
 const mul=(a,b)=>z(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
@@ -37,7 +41,7 @@ function gaussian(A,b){
  if(magnitude(A[pivot][col])<1e-14)throw Error('Circuit cannot be solved: check floating terminals, disconnected sections, or shorted ideal sources.');
  [A[col],A[pivot]]=[A[pivot],A[col]];[b[col],b[pivot]]=[b[pivot],b[col]];
  for(let r=col+1;r<n;r++){const f=div(A[r][col],A[col][col]);if(magnitude(f)===0)continue;for(let j=col;j<n;j++)A[r][j]=add(A[r][j],neg(mul(f,A[col][j])));b[r]=add(b[r],neg(mul(f,b[col])));}}
- const x=Array.from({length:n},()=>z());for(let r=n-1;r>=0;r--){let v=b[r];for(let c=r+1;c<n;c++)v=add(v,neg(mul(A[r][c],x[c])));x[r]=div(v,A[r][r]);}return x.map((v,i)=>z(v.re/scales[i],v.im/scales[i]));
+ const x=Array.from({length:n},()=>z());for(let r=n-1;r>=0;r--){let v=b[r];for(let c=r+1;c<n;c++)v=add(v,neg(mul(A[r][c],x[c])));x[r]=div(v,A[r][r]);}return x.map((v,i)=>requireFinite(z(v.re/scales[i],v.im/scales[i])));
 }
 export const dependentTypes=['vcvs','ccvs','vccs','cccs'];
 export const voltageControlled=c=>['vcvs','vccs'].includes(c.type);
@@ -90,7 +94,7 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
  else rhs(j,mode==='ac'?(c.type==='ac'?z(c.value):z()):c.type==='ac'?z(mode==='transient'?c.value*Math.sin(2*Math.PI*(c.frequency||50)*time):0):z(c.value));
  }
  const solution=gaussian(A,b),voltage=p=>{const i=index(p);return i>=0?solution[i]:top.node(p)===-1?z():z(NaN);},results={},next={};
- for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),neg(voltage(pp[1]))),i=branches.includes(c)?solution[branchIndex(c)]:add(mul(yFor(c),v),offset(c));results[c.id]={v,i,p:mul(v,z(i.re,-i.im))};next[c.id]={v:v.re,i:i.re};}
+ for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),neg(voltage(pp[1]))),i=branches.includes(c)?solution[branchIndex(c)]:add(mul(yFor(c),v),offset(c));results[c.id]={v:requireFinite(v),i:requireFinite(i),p:requireFinite(mul(v,z(i.re,-i.im)))};next[c.id]={v:v.re,i:i.re};}
  const updated=Object.fromEntries(nonlinear.map(c=>[c.id,results[c.id].v.re>c.value+1e-9]));
  if(nonlinear.some(c=>updated[c.id]!==diodeStates[c.id])){if(iteration>=80)throw Error('Diode model did not converge. Check source polarity and add series resistance.');return solvePrepared(circuit,prepared,{mode,frequency,dt,time,history,diodeStates:updated,iteration:iteration+1});}
  for(const c of nonlinear)results[c.id].lit=c.type==='led'&&results[c.id].i.re>1e-4;

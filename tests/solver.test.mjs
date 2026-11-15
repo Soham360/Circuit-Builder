@@ -37,3 +37,15 @@ test('a 5 fA source across 200 teraohms develops one volt',()=>{
  ],wires:[]};
  near(Math.abs(solve(circuit).results.R1.v.re),1);
 });
+
+test('a non-finite voltage or power is reported as a numerical range error',()=>{
+ const circuit={components:[
+  {id:'I1',type:'current',value:10,x:48,y:0,rot:0},
+  {id:'R1',type:'resistor',value:1e308,x:48,y:0,rot:0},
+  {id:'GND',type:'ground',x:0,y:0}
+ ],wires:[]};
+ assert.throws(()=>solve(circuit),/outside the numerical range/);
+ circuit.components[1].value=1e306;
+ circuit.components[0].value=100;
+ assert.throws(()=>solve(circuit),/outside the numerical range/);
+});
