@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {templates} from '../content.js';
 import {solve} from '../solver.js';
-import {breadboardPlan,boardGraph} from '../breadboard-model.js';
+import {breadboardPlan,boardGraph,circuitFromBreadboard} from '../breadboard-model.js';
 import {analysisSettings,decodeCircuit,encodeCircuit} from '../circuit-file.js';
 
 const defaults={frequency:100,duration:.05};
@@ -48,4 +48,24 @@ test('LM741 example imports and simulates both summing gains',()=>{
   assert.ok(Math.abs(result.results.U1.v.re-expected)<0.00003);
   assert.ok(Math.abs(result.voltage({x:744,y:240}).re-expected)<0.00003);
  }
+});
+
+test('the screenshot circuit maps each LM741 pin to the correct breadboard net',()=>{
+ const record=decodeCircuit(readFileSync(new URL('../examples/lm741-screenshot-circuit.json',import.meta.url),'utf8'));
+ const {circuit}=record,plan=breadboardPlan(circuit),graph=boardGraph(plan);
+ const root=(id,pin)=>graph.root(plan.ports.find(p=>p.component===id&&p.pin===pin).hole);
+ assert.equal(root('U1','A'),root('R5','B'));
+ assert.equal(root('U1','B'),root('R5','A'));
+ assert.equal(root('U1','B'),root('R1','B'));
+ assert.equal(root('U1','B'),root('R3','A'));
+ assert.equal(root('U1','C'),root('V1','B'));
+ assert.equal(root('U1','C'),root('V2','B'));
+ assert.equal(new Set(['A','B','C'].map(pin=>root('U1',pin))).size,3);
+ assert.equal(root('V1','A'),root('R2','A'));
+ assert.equal(root('R2','B'),root('R1','A'));
+ assert.equal(root('V2','A'),root('R4','B'));
+ assert.equal(root('R4','A'),root('R3','B'));
+ const expected=-(1000/40000*9+1000/21000*1.64);
+ const rebuilt=circuitFromBreadboard(circuit,plan);
+ assert.ok(Math.abs(solve(rebuilt).results.U1.v.re-expected)<0.00001);
 });
