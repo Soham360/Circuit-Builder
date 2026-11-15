@@ -9,6 +9,25 @@ const bridge={components:[c('V1','voltage',144,288,90,10),diamond('R1',384,192,1
 const parallel={components:[c('V1','voltage',144,288,90,12),c('R1','resistor',384,288,90,1000),c('R2','resistor',624,288,90,2000),ground()],wires:[w([144,240],[144,96],[384,96],[624,96],[624,240]),w([384,96],[384,240]),w([384,336],[384,480],[144,480],[144,336]),w([624,336],[624,480],[384,480])]};
 const ac=loop('capacitor',1e-6);ac.components[0].type='ac';ac.components[0].value=5;ac.components[0].frequency=100;
 const sw=loop();sw.components.push(c('S1','switch',384,480,0,1,{closed:true}));sw.wires.pop();sw.wires.push(w([624,336],[624,480],[432,480]),w([336,480],[144,480],[144,336]));
+const summingAmplifier={
+ components:[
+  c('Va','voltage',144,240,90,2),c('Vb','voltage',240,360,90,5),
+  c('Ra','resistor',312,144,0,40000),c('Rb','resistor',360,288,0,25000),
+  c('Rf','resistor',552,72,0,10000),
+  c('U1','vcvs',648,324,90,200000,{controlPositive:'GND:A',controlNegative:'Ra:B'}),
+  ground()
+ ],
+ wires:[
+  w([144,192],[144,144],[264,144]),w([240,312],[240,288],[312,288]),
+  w([360,144],[456,144],[456,288],[408,288]),
+  w([456,144],[456,72],[504,72]),
+  w([744,240],[648,240]),
+  w([600,72],[648,72],[648,240],[648,276]),
+  w([144,288],[144,480],[240,480],[648,480],[648,372]),
+  w([240,408],[240,480])
+ ],
+ junctionNames:{'144,144':'Va','240,288':'Vb','456,144':'V−','744,240':'Vo'}
+};
 export const templates=[
 
 {id:'bridge',name:'Wheatstone bridge',category:'DC NETWORKS',level:'Intermediate',description:'Balance two voltage dividers to measure an unknown resistance.',lesson:'bridge',data:bridge,mode:'dc'},
@@ -18,7 +37,12 @@ export const templates=[
 {id:'rl',name:'RL step response',category:'TIME DOMAIN',level:'Intermediate',description:'See an inductor resist a sudden change in current.',lesson:'rl',data:loop('inductor',1),mode:'transient',duration:0.005},
 {id:'filter',name:'RC low-pass filter',category:'AC ANALYSIS',level:'Intermediate',description:'Compare input and output amplitude and phase.',lesson:'ac',data:ac,mode:'ac'},
 {id:'switch',name:'A simple switched loop',category:'START HERE',level:'Beginner',description:'Open and close a switch to control current.',lesson:'ohm',data:sw,mode:'dc'}];
-templates.push(...homeworkCircuits,...labCircuits);
+templates.push(
+ {id:'lm741-summing',name:'LM741 inverting summing amplifier',category:'DC NETWORKS',level:'Intermediate',
+  description:'Approximate the LM741 in linear operation with a voltage-controlled voltage source. Edit Va and Vb, then read Vo at the output node.',
+  lesson:'dependent',data:summingAmplifier,mode:'dc'},
+ ...homeworkCircuits,...labCircuits
+);
 const mit='https://ocw.mit.edu/courses/6-071j-introduction-to-electronics-signals-and-measurement-spring-2006/resources/linear_crct_ana/';
 const rcSource='https://openstax.org/books/university-physics-volume-2/pages/10-5-rc-circuits';
 export const lessons=[
