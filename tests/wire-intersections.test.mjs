@@ -34,6 +34,6 @@ test('older saved crossing routes are repaired without changing any electrical c
  const repaired=setLabWireMode(p,true);assert.deepEqual(wireIntersections(repaired),[]);assert.equal(repaired.labRoutingVersion,3);assert.deepEqual(repaired.ports,p.ports);
  assert.deepEqual(circuitFromBreadboard(c,repaired).wires,c.wires);
 });
-for(const t of templates.filter(t=>!t.schematicOnly))test(t.id+': unrestricted generated wires never intersect',()=>{
+for(const t of templates)test(t.id+': unrestricted generated wires never intersect',()=>{
  assert.deepEqual(wireIntersections(breadboardPlan(t.data)),[]);
 });

@@ -41,7 +41,7 @@ export const templates=[
 templates.push(
  {id:'lm741-summing',name:'LM741 inverting summing amplifier',category:'DC NETWORKS',level:'Intermediate',
   description:'Wire the op amp inputs and output to simulate the LM741 in linear operation. Edit Va and Vb, then read Vo at the output node.',
-  lesson:'dependent',data:summingAmplifier,mode:'dc',schematicOnly:true},
+  lesson:'dependent',data:summingAmplifier,mode:'dc'},
  ...homeworkCircuits,...labCircuits
 );
 const mit='https://ocw.mit.edu/courses/6-071j-introduction-to-electronics-signals-and-measurement-spring-2006/resources/linear_crct_ana/';

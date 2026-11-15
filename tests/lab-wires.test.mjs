@@ -15,7 +15,7 @@ test('the exact user kit counts both endpoints and uses 51-hole long green',()=>
  assert.equal(labWireFor(hole(1,'e'),hole(1,'f')).holes,5);
  assert.equal(labWireFor(hole(1,'p'),hole(1,'a')).holes,5);
 });
-for(const template of templates.filter(t=>!t.schematicOnly))test(template.id+': kit routes retain every net, free hole and solver result',()=>{
+for(const template of templates)test(template.id+': kit routes retain every net, free hole and solver result',()=>{
  const c=structuredClone(template.data),normal=breadboardPlan(c),lab=setLabWireMode(normal,true);
  assert.ok(auditBreadboard(lab));assert.ok(validLabPlan(lab));assert.deepEqual(wireIntersections(lab),[]);assert.equal(normal.labMode,undefined);
  assert.deepEqual(lab.ports,normal.ports);

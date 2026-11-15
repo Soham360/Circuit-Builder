@@ -33,7 +33,7 @@ test('cached lab routing is repaired instead of retaining stale dangling branche
  const fixed=setLabWireMode(p,true);assert.equal(fixed.labRoutingVersion,3);assert.deepEqual(jumperConnectionProblems(fixed),[]);assertGeneratedConnections(fixed);
  assert.equal(boardGraph(fixed).root(fixed.ports[0].hole),boardGraph(fixed).root(fixed.ports[1].hole));
 });
-for(const template of templates.filter(t=>!t.schematicOnly))for(const lab of [false,true])test(template.id+(lab?' lab':' normal')+': every generated end is useful and represented by its physical bus',()=>{
+for(const template of templates)for(const lab of [false,true])test(template.id+(lab?' lab':' normal')+': every generated end is useful and represented by its physical bus',()=>{
  const c=structuredClone(template.data),base=breadboardPlan(c),plan=lab?setLabWireMode(base,true):base;
  assertGeneratedConnections(plan);assert.deepEqual(jumperConnectionProblems(plan),[]);
  const svg=connectionSVG(plan,{board:0}),groups=boardConnections(plan);

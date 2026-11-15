@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {templates} from '../content.js';
 import {solve} from '../solver.js';
-import {breadboardPlan} from '../breadboard-model.js';
+import {breadboardPlan,boardGraph} from '../breadboard-model.js';
 import {analysisSettings,decodeCircuit,encodeCircuit} from '../circuit-file.js';
 
 const defaults={frequency:100,duration:.05};
@@ -32,7 +32,11 @@ test('LM741 example imports and simulates both summing gains',()=>{
  const record=decodeCircuit(readFileSync(new URL('../examples/lm741-summing-amplifier.json',import.meta.url),'utf8'));
  const template=templates.find(t=>t.id===record.templateId);
  assert.deepEqual(record.circuit,template.data);
- assert.throws(()=>breadboardPlan(record.circuit),/Use Schematic view/);
+ const plan=breadboardPlan(record.circuit);
+ const ports=plan.ports.filter(p=>p.component==='U1');
+ const graph=boardGraph(plan);
+ assert.deepEqual(ports.map(p=>p.hole.row),['f','e','e']);
+ assert.equal(new Set(ports.map(p=>graph.root(p.hole))).size,3);
  const {circuit}=record;
  assert.equal(circuit.components.find(c=>c.id==='U1').type,'opamp');
  const va=circuit.components.find(c=>c.id==='Va'),vb=circuit.components.find(c=>c.id==='Vb');
