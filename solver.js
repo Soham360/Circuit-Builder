@@ -11,7 +11,8 @@ const mul=(a,b)=>z(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
 const div=(a,b)=>{const d=b.re*b.re+b.im*b.im;return z((a.re*b.re+a.im*b.im)/d,(a.im*b.re-a.re*b.im)/d);};
 export const magnitude=a=>Math.hypot(a.re,a.im);
 export const roundCoord=v=>Math.round(v*1e7)/1e7;
-export function pins(c){if(c.type==='ground')return [{x:c.x,y:c.y}];const a=(c.rot||0)*Math.PI/180,h=(c.length||96)/2,dx=Math.cos(a)*h,dy=Math.sin(a)*h;return [{x:roundCoord(c.x-dx),y:roundCoord(c.y-dy)},{x:roundCoord(c.x+dx),y:roundCoord(c.y+dy)}];}
+export function pins(c){if(c.type==='ground')return [{x:c.x,y:c.y}];const a=(c.rot||0)*Math.PI/180,h=(c.length||96)/2,cos=Math.cos(a),sin=Math.sin(a),dx=cos*h,dy=sin*h;if(c.type==='opamp')return [[h,0],[-h,-24],[-h,24]].map(([x,y])=>({x:roundCoord(c.x+x*cos-y*sin),y:roundCoord(c.y+x*sin+y*cos)}));return [{x:roundCoord(c.x-dx),y:roundCoord(c.y-dy)},{x:roundCoord(c.x+dx),y:roundCoord(c.y+dy)}];}
+export const pinLabel=(c,index)=>(c.type==='opamp'?['OUT','−','+']:['A','B'])[index];
 export const key=p=>`${roundCoord(p.x)},${roundCoord(p.y)}`;
 function onSegment(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy);return length<1e-9?Math.hypot(p.x-a.x,p.y-a.y)<1e-6:Math.abs((p.x-a.x)*dy-(p.y-a.y)*dx)/length<1e-6&&(p.x-a.x)*dx+(p.y-a.y)*dy>=-1e-6*length&&(p.x-b.x)*dx+(p.y-b.y)*dy<=1e-6*length;}
 export function routeWire(a,b,{mode='orthogonal',angle=45}={}){const p=[{...a}];if(mode==='direct'){p.push({...b});return p;}if(mode==='angle'){const t=angle*Math.PI/180,dx=Math.cos(t),dy=Math.sin(t),options=[];if(Math.abs(dx)>1e-8){const k=(b.x-a.x)/dx;options.push({x:b.x,y:roundCoord(a.y+k*dy)});}if(Math.abs(dy)>1e-8){const k=(b.y-a.y)/dy;options.push({x:roundCoord(a.x+k*dx),y:b.y});}options.sort((p,q)=>Math.hypot(p.x-a.x,p.y-a.y)+Math.hypot(p.x-b.x,p.y-b.y)-Math.hypot(q.x-a.x,q.y-a.y)-Math.hypot(q.x-b.x,q.y-b.y));const bend=options[0];if(bend&&key(bend)!==key(a)&&key(bend)!==key(b))p.push(bend);}else if(a.x!==b.x&&a.y!==b.y)p.push({x:b.x,y:a.y});p.push({...b});return p;}
@@ -48,12 +49,12 @@ export const voltageControlled=c=>['vcvs','vccs'].includes(c.type);
 export const currentControlled=c=>['ccvs','cccs'].includes(c.type);
 export function terminal(circuit,ref){
  if(typeof ref!=='string')throw Error('Choose the controlling + and − terminals in Properties.');
- const split=ref.lastIndexOf(':'),c=circuit.components.find(c=>c.id===ref.slice(0,split)),pin=ref.slice(split+1)==='B'?1:0;
+ const split=ref.lastIndexOf(':'),c=circuit.components.find(c=>c.id===ref.slice(0,split)),pin=['A','B','C'].indexOf(ref.slice(split+1));
  if(!c||!pins(c)[pin])throw Error('A controlling terminal is missing. Select valid terminals in Properties.');
  return pins(c)[pin];
 }
 function prepareSolve(circuit){
- if(!circuit.components.some(c=>['voltage','ac','current',...dependentTypes].includes(c.type)))throw Error('Add a voltage or current source to your circuit.');
+ if(!circuit.components.some(c=>['voltage','ac','current','opamp',...dependentTypes].includes(c.type)))throw Error('Add a voltage or current source to your circuit.');
  const top=topology(circuit),cs=circuit.components.filter(c=>c.type!=='ground');
  // A wire-only group has no voltage equation, but remains visible in the topology.
  const active=[...new Set(cs.flatMap(c=>pins(c).map(top.node)))].filter(n=>n>=0);
@@ -72,7 +73,7 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
  if(mode==='ac'&&nonlinear.length)throw Error('LEDs and diodes support DC and transient analysis. AC small-signal analysis is not available.');
  diodeStates??=Object.fromEntries(nonlinear.map(c=>[c.id,false]));
  for(const c of cs){if(c.unknown)throw Error('This circuit has undefined values. Open Homework to solve symbolically or provide known values.');if(!Number.isFinite(c.value)||(['resistor','capacitor','inductor','potentiometer','led','diode'].includes(c.type)&&c.value<=0))throw Error('Component values must be finite; resistance, inductance, capacitance and diode forward voltage must be positive.');}
- const branches=cs.filter(c=>['voltage','ac','current',...dependentTypes].includes(c.type)||(c.type==='inductor'&&mode!=='ac'));
+ const branches=cs.filter(c=>['voltage','ac','current','opamp',...dependentTypes].includes(c.type)||(c.type==='inductor'&&mode!=='ac'));
  const branchIndex=c=>count+branches.indexOf(c);
  const size=count+branches.length,A=Array.from({length:size},()=>Array.from({length:size},()=>z())),b=Array.from({length:size},()=>z());
  const stamp=(r,c,v)=>{if(r>=0&&c>=0)A[r][c]=add(A[r][c],v);};
@@ -84,7 +85,16 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
  // Every ideal source has a branch-current unknown. This also lets a dependent
  // source sense any component's signed current without inserting a fake resistor.
  function currentLaw(id){const c=cs.find(c=>c.id===id);if(!c)throw Error('Choose a valid controlling branch in Properties.');if(branches.includes(c))return {terms:[[branchIndex(c),z(1)]],constant:z()};const [a,d]=pins(c).map(index),g=yFor(c);return {terms:[[a,g],[d,neg(g)]],constant:offset(c)};}
- for(const c of cs){const [a,d]=pins(c).map(index),g=yFor(c);adm(a,d,g);inj(a,d,offset(c));if(!branches.includes(c))continue;
+ for(const c of cs){const [a,d,p]=pins(c).map(index);
+ if(c.type==='opamp'){
+  const j=branchIndex(c);
+  stamp(a,j,z(1));
+  stamp(j,a,z(1));
+  stamp(j,d,z(c.value));
+  stamp(j,p,z(-c.value));
+  continue;
+ }
+ const g=yFor(c);adm(a,d,g);inj(a,d,offset(c));if(!branches.includes(c))continue;
  const j=branchIndex(c),isCurrent=['current','vccs','cccs'].includes(c.type);stamp(a,j,z(1));stamp(d,j,z(-1));
  if(isCurrent)stamp(j,j,z(1));else{stamp(j,a,z(1));stamp(j,d,z(-1));}
  if(voltageControlled(c)){const p=index(terminal(circuit,c.controlPositive)),n=index(terminal(circuit,c.controlNegative));stamp(j,p,z(-c.value));stamp(j,n,z(c.value));}
@@ -94,7 +104,7 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
  else rhs(j,mode==='ac'?(c.type==='ac'?z(c.value):z()):c.type==='ac'?z(mode==='transient'?c.value*Math.sin(2*Math.PI*(c.frequency||50)*time):0):z(c.value));
  }
  const solution=gaussian(A,b),voltage=p=>{const i=index(p);return i>=0?solution[i]:top.node(p)===-1?z():z(NaN);},results={},next={};
- for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),neg(voltage(pp[1]))),i=branches.includes(c)?solution[branchIndex(c)]:add(mul(yFor(c),v),offset(c));results[c.id]={v:requireFinite(v),i:requireFinite(i),p:requireFinite(mul(v,z(i.re,-i.im)))};next[c.id]={v:v.re,i:i.re};}
+ for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),c.type==='opamp'?z():neg(voltage(pp[1]))),i=branches.includes(c)?solution[branchIndex(c)]:add(mul(yFor(c),v),offset(c));results[c.id]={v:requireFinite(v),i:requireFinite(i),p:requireFinite(mul(v,z(i.re,-i.im)))};next[c.id]={v:v.re,i:i.re};}
  const updated=Object.fromEntries(nonlinear.map(c=>[c.id,results[c.id].v.re>c.value+1e-9]));
  if(nonlinear.some(c=>updated[c.id]!==diodeStates[c.id])){if(iteration>=80)throw Error('Diode model did not converge. Check source polarity and add series resistance.');return solvePrepared(circuit,prepared,{mode,frequency,dt,time,history,diodeStates:updated,iteration:iteration+1});}
  for(const c of nonlinear)results[c.id].lit=c.type==='led'&&results[c.id].i.re>1e-4;

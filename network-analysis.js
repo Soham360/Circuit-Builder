@@ -27,6 +27,7 @@ export function portEquivalent(circuit,{component,nodeA,nodeB,loadResistance}={}
 
 // A spanning-tree cycle basis works for nonplanar layouts as well as planar meshes.
 export function loopAnalysis(circuit){
+ if(circuit.components.some(c=>c.type==='opamp'))throw Error('Use Run in Workspace to simulate op amps.');
  const s=solve(circuit),t=s.topology,edges=circuit.components.filter(c=>c.type!=='ground').map(c=>({c,nodes:pins(c).map(t.node)}));
  const tree=new Map(),cycles=[];
  const path=(from,to,seen=new Set())=>{if(from===to)return [];seen.add(from);for(const e of tree.get(from)||[]){if(seen.has(e.to))continue;const rest=path(e.to,to,seen);if(rest)return [{id:e.id,sign:e.sign},...rest];}return null;};

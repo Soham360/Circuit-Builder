@@ -11,19 +11,20 @@ const ac=loop('capacitor',1e-6);ac.components[0].type='ac';ac.components[0].valu
 const sw=loop();sw.components.push(c('S1','switch',384,480,0,1,{closed:true}));sw.wires.pop();sw.wires.push(w([624,336],[624,480],[432,480]),w([336,480],[144,480],[144,336]));
 const summingAmplifier={
  components:[
-  c('Va','voltage',144,240,90,2),c('Vb','voltage',240,360,90,5),
+  c('Va','voltage',144,240,90,9),c('Vb','voltage',240,360,90,1.5),
   c('Ra','resistor',312,144,0,40000),c('Rb','resistor',360,288,0,25000),
   c('Rf','resistor',552,72,0,10000),
-  c('U1','vcvs',648,324,90,200000,{controlPositive:'GND:A',controlNegative:'Ra:B'}),
+  c('U1','opamp',552,240,0,200000),
   ground()
  ],
  wires:[
   w([144,192],[144,144],[264,144]),w([240,312],[240,288],[312,288]),
   w([360,144],[456,144],[456,288],[408,288]),
   w([456,144],[456,72],[504,72]),
-  w([744,240],[648,240]),
-  w([600,72],[648,72],[648,240],[648,276]),
-  w([144,288],[144,480],[240,480],[648,480],[648,372]),
+  w([456,216],[504,216]),
+  w([744,240],[648,240],[600,240]),
+  w([600,72],[648,72],[648,240]),
+  w([144,288],[144,480],[240,480],[480,480],[480,264],[504,264]),
   w([240,408],[240,480])
  ],
  junctionNames:{'144,144':'Va','240,288':'Vb','456,144':'V−','744,240':'Vo'}
@@ -39,8 +40,8 @@ export const templates=[
 {id:'switch',name:'A simple switched loop',category:'START HERE',level:'Beginner',description:'Open and close a switch to control current.',lesson:'ohm',data:sw,mode:'dc'}];
 templates.push(
  {id:'lm741-summing',name:'LM741 inverting summing amplifier',category:'DC NETWORKS',level:'Intermediate',
-  description:'Approximate the LM741 in linear operation with a voltage-controlled voltage source. Edit Va and Vb, then read Vo at the output node.',
-  lesson:'dependent',data:summingAmplifier,mode:'dc'},
+  description:'Wire the op amp inputs and output to simulate the LM741 in linear operation. Edit Va and Vb, then read Vo at the output node.',
+  lesson:'dependent',data:summingAmplifier,mode:'dc',schematicOnly:true},
  ...homeworkCircuits,...labCircuits
 );
 const mit='https://ocw.mit.edu/courses/6-071j-introduction-to-electronics-signals-and-measurement-spring-2006/resources/linear_crct_ana/';
@@ -66,7 +67,7 @@ export function migrateLegacyBridge(data){
  return {...data,components:bridge.components.map(c=>{const prior=data.components.find(p=>p.id===c.id);return {...prior,...structuredClone(c),value:prior.value,unknown:prior.unknown};}),wires:structuredClone(bridge.wires)};
 }
 
-componentTypes.push({type:'vcvs',name:'VCVS',unit:'V/V',value:2,prefix:'E',hint:'Voltage → voltage'},{type:'ccvs',name:'CCVS',unit:'Ω',value:1000,prefix:'H',hint:'Current → voltage'},{type:'vccs',name:'VCCS',unit:'S',value:0.001,prefix:'G',hint:'Voltage → current'},{type:'cccs',name:'CCCS',unit:'A/A',value:2,prefix:'F',hint:'Current → current'});
+componentTypes.push({type:'opamp',name:'Op amp',unit:'V/V',value:200000,prefix:'U',hint:'Linear open-loop gain'}, {type:'vcvs',name:'VCVS',unit:'V/V',value:2,prefix:'E',hint:'Voltage → voltage'},{type:'ccvs',name:'CCVS',unit:'Ω',value:1000,prefix:'H',hint:'Current → voltage'},{type:'vccs',name:'VCCS',unit:'S',value:0.001,prefix:'G',hint:'Voltage → current'},{type:'cccs',name:'CCCS',unit:'A/A',value:2,prefix:'F',hint:'Current → current'});
 lessons.push({id:'dependent',title:'Dependent sources',tag:'CONTROLLED SOURCES',formula:'vo = μvc · vo = rmic · io = gmvc · io = βic',intro:'A dependent source sets its output using a voltage or current elsewhere in the same circuit. Its diamond symbol distinguishes it from an independent source.',body:'VCVS: voltage gain μ (V/V). CCVS: transresistance rm (Ω). VCCS: transconductance gm (S). CCCS: current gain β (A/A). Select sensing terminals for voltage control, or a component’s A → B current for current control. Positive output current runs A → B; a current source feeding a grounded load may therefore produce a negative node voltage. Dependent sources stay active when calculating a Thévenin resistance; use a test source.',try:'Open the voltage divider, add a VCVS, set its gain to 2 and sense V1.A minus V1.B. Connect its output across a load and ground. The output is twice the input voltage.',template:'divider',question:'A VCCS has gm = 2 mS and control voltage 3 V. What is its output current?',answers:['6 mA','1.5 mA','6 V'],correct:0,explain:'io = gm × vc = 0.002 × 3 = 0.006 A = 6 mA.',source:'https://ocw.mit.edu/courses/6-002-circuits-and-electronics-spring-2007/pages/lecture-notes/'});
 
 componentTypes.push(

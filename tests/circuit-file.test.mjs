@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {templates} from '../content.js';
 import {solve} from '../solver.js';
+import {breadboardPlan} from '../breadboard-model.js';
 import {analysisSettings,decodeCircuit,encodeCircuit} from '../circuit-file.js';
 
 const defaults={frequency:100,duration:.05};
@@ -31,12 +32,16 @@ test('LM741 example imports and simulates both summing gains',()=>{
  const record=decodeCircuit(readFileSync(new URL('../examples/lm741-summing-amplifier.json',import.meta.url),'utf8'));
  const template=templates.find(t=>t.id===record.templateId);
  assert.deepEqual(record.circuit,template.data);
+ assert.throws(()=>breadboardPlan(record.circuit),/Use Schematic view/);
  const {circuit}=record;
+ assert.equal(circuit.components.find(c=>c.id==='U1').type,'opamp');
  const va=circuit.components.find(c=>c.id==='Va'),vb=circuit.components.find(c=>c.id==='Vb');
- for(const [a,b,expected] of [[2,5,-2.5],[4,0,-1],[0,5,-2],[-4,5,-1]]){
+ assert.deepEqual([va.value,vb.value],[9,1.5]);
+ for(const [a,b,expected] of [[9,1.5,-2.85],[4,0,-1],[0,5,-2],[-4,5,-1]]){
   va.value=a;
   vb.value=b;
   const result=solve(circuit,{mode:record.mode});
+  assert.ok(Math.abs(result.results.U1.v.re-expected)<0.00003);
   assert.ok(Math.abs(result.voltage({x:744,y:240}).re-expected)<0.00003);
  }
 });
