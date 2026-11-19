@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {templates} from '../content.js';
-import {solve} from '../solver.js';
-import {breadboardPlan,boardGraph,circuitFromBreadboard} from '../breadboard-model.js';
+import {solve,transient} from '../solver.js';
+import {breadboardPlan,boardGraph,busKey,circuitFromBreadboard,opampPowerLeads,addBoardWire} from '../breadboard-model.js';
 import {analysisSettings,decodeCircuit,encodeCircuit} from '../circuit-file.js';
 
 const defaults={frequency:100,duration:.05};
@@ -90,4 +90,29 @@ test('the six-resistor summing amplifier routes on one board without jumper cros
  const original=solve(circuit).results.U1.v.re;
  assert.ok(Math.abs(original-expected)<0.0001);
  assert.equal(solve(circuitFromBreadboard(circuit,plan)).results.U1.v.re,original);
+});
+
+test('LM741 supplies occupy the correct isolated strips and limits persist and clip the output',()=>{
+ const source=decodeCircuit(readFileSync(new URL('../examples/lm741-summing-amplifier.json',import.meta.url),'utf8'));
+ const c=source.circuit.components.find(c=>c.id==='U1');
+ c.supply={negativeRail:-8,positiveRail:10,outputMin:-2,outputMax:1};
+ const {circuit}=decodeCircuit(encodeCircuit(source));
+ const result=solve(circuit);
+ assert.equal(result.results.U1.v.re,-2);
+ assert.equal(result.results.U1.saturation,'low');
+ assert.ok(Math.abs(result.results.Rf.i.re)>0,'feedback current uses the saturated solution');
+ assert.equal(transient(circuit,{steps:2}).at(-1).results.U1.v.re,-2);
+ assert.equal(solve(circuit,{mode:'ac'}).results.U1.saturation,undefined);
+ for(const source of circuit.components.filter(c=>c.type==='voltage'))source.value*=-1;
+ assert.equal(solve(circuit).results.U1.v.re,1);
+ assert.equal(solve(circuit).results.U1.saturation,'high');
+ const plan=breadboardPlan(circuit),opamp=plan.devices.find(c=>c.id==='U1'),minus=opamp.ports.find(p=>p.pin==='B').hole;
+ const leads=opampPowerLeads(opamp);
+ assert.deepEqual(leads.map(l=>[l.pin,l.voltage,l.hole.column,l.hole.row]),[[4,-8,minus.column+2,'a'],[7,10,minus.column,'j']]);
+ for(const lead of leads){
+  assert.ok(plan.ports.every(p=>busKey(p.hole)!==busKey(lead.hole)));
+  assert.throws(()=>addBoardWire(plan,lead.hole,{...lead.hole,column:1}),/reserved/);
+ }
+ c.supply.outputMax=11;
+ assert.throws(()=>decodeCircuit(encodeCircuit(source)),/within those rails/);
 });

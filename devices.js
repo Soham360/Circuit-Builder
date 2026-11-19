@@ -14,3 +14,12 @@ export const deviceSymbols={
  potentiometer:'<path d="M-48 0H-25V-12H25V12H-25V0M25 0H48M-15 25L17 -22M9 -19L17 -22 17 -14"/>',
  button:'<path d="M-48 0H-17M17 0H48M-17 -9H17M0 -9V-22M-10 -22H10"/><circle cx="-17" r="3"/><circle cx="17" r="3"/>'
 };
+
+export function opampSupply(component){
+ const {negativeRail=-9,positiveRail=9,outputMin=-7,outputMax=7}=component.supply??{};
+ if(![negativeRail,positiveRail,outputMin,outputMax].every(Number.isFinite)||
+    !(negativeRail<0&&positiveRail>0&&negativeRail<=outputMin&&outputMin<outputMax&&outputMax<=positiveRail)){
+  throw Error('Enter negative and positive supply rails and ordered output limits within those rails.');
+ }
+ return {negativeRail,positiveRail,outputMin,outputMax};
+}

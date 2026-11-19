@@ -1,3 +1,4 @@
+import {opampSupply} from './devices.js';
 import {componentTypes} from './content.js';
 
 const types=new Set(componentTypes.map(component=>component.type));
@@ -14,6 +15,7 @@ export function validateCircuit(record){
      (component.length!==undefined&&(!Number.isFinite(component.length)||component.length<=0))){
    throw Error('Invalid component data.');
   }
+  if(component.type==='opamp')opampSupply(component);
   ids.add(component.id);
   if(component.type==='button')component.closed=false;
  }

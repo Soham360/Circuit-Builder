@@ -1,5 +1,5 @@
-import {isContact,isDiode,isVariable,effectiveResistance} from './devices.js';
-// Ideal linear circuit solver. Branch current is positive from terminal A to B.
+import {isContact,isDiode,isVariable,effectiveResistance,opampSupply} from './devices.js';
+// Modified nodal circuit solver. Branch current is positive from terminal A to B.
 const z=(re=0,im=0)=>({re,im});
 function requireFinite(value){
  if(!Number.isFinite(value.re)||!Number.isFinite(value.im))throw Error('Circuit values are outside the numerical range.');
@@ -60,15 +60,15 @@ function prepareSolve(circuit){
  const active=[...new Set(cs.flatMap(c=>pins(c).map(top.node)))].filter(n=>n>=0);
  const indices=new Map(active.map((n,i)=>[n,i]));
  const index=p=>indices.get(top.node(p))??-1;
- return {top,cs,index,count:active.length,nonlinear:cs.filter(isDiode)};
+ return {top,cs,index,count:active.length,nonlinear:cs.filter(isDiode),opamps:cs.filter(c=>c.type==='opamp').map(c=>({c,...opampSupply(c)}))};
 }
 
 export function solve(circuit,options){
  return solvePrepared(circuit,prepareSolve(circuit),options);
 }
 
-function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,history={},diodeStates=null,iteration=0}={}){
- const {top,cs,index,count,nonlinear}=prepared;
+function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,history={},diodeStates=null,opampStates={},iteration=0}={}){
+ const {top,cs,index,count,nonlinear,opamps}=prepared;
  if(mode==='ac'&&!(frequency>0))throw Error('AC frequency must be positive.');
  if(mode==='ac'&&nonlinear.length)throw Error('LEDs and diodes support DC and transient analysis. AC small-signal analysis is not available.');
  diodeStates??=Object.fromEntries(nonlinear.map(c=>[c.id,false]));
@@ -90,8 +90,12 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
   const j=branchIndex(c);
   stamp(a,j,z(1));
   stamp(j,a,z(1));
-  stamp(j,d,z(c.value));
-  stamp(j,p,z(-c.value));
+  const limit=opampStates[c.id];
+  if(limit!==undefined)rhs(j,z(limit));
+  else{
+   stamp(j,d,z(c.value));
+   stamp(j,p,z(-c.value));
+  }
   continue;
  }
  const g=yFor(c);adm(a,d,g);inj(a,d,offset(c));if(!branches.includes(c))continue;
@@ -106,7 +110,23 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
  const solution=gaussian(A,b),voltage=p=>{const i=index(p);return i>=0?solution[i]:top.node(p)===-1?z():z(NaN);},results={},next={};
  for(const c of cs){const pp=pins(c),v=add(voltage(pp[0]),c.type==='opamp'?z():neg(voltage(pp[1]))),i=branches.includes(c)?solution[branchIndex(c)]:add(mul(yFor(c),v),offset(c));results[c.id]={v:requireFinite(v),i:requireFinite(i),p:requireFinite(mul(v,z(i.re,-i.im)))};next[c.id]={v:v.re,i:i.re};}
  const updated=Object.fromEntries(nonlinear.map(c=>[c.id,results[c.id].v.re>c.value+1e-9]));
- if(nonlinear.some(c=>updated[c.id]!==diodeStates[c.id])){if(iteration>=80)throw Error('Diode model did not converge. Check source polarity and add series resistance.');return solvePrepared(circuit,prepared,{mode,frequency,dt,time,history,diodeStates:updated,iteration:iteration+1});}
+ // Re-stamp a saturated amplifier as a fixed output voltage so its feedback
+ // and the rest of the circuit are solved at the actual clipped voltage.
+ const nextOpampStates={};
+ for(const {c,outputMin,outputMax} of opamps){
+  const [,minus,plus]=pins(c);
+  const demand=opampStates[c.id]===undefined?results[c.id].v.re:c.value*(voltage(plus).re-voltage(minus).re);
+  if(mode!=='ac'){
+   if(demand<outputMin-1e-7)nextOpampStates[c.id]=outputMin;
+   if(demand>outputMax+1e-7)nextOpampStates[c.id]=outputMax;
+   results[c.id].saturation=opampStates[c.id]===undefined?'linear':opampStates[c.id]===outputMin?'low':'high';
+  }
+ }
+ const opampChanged=opamps.some(({c})=>opampStates[c.id]!==nextOpampStates[c.id]);
+ if(opampChanged||nonlinear.some(c=>updated[c.id]!==diodeStates[c.id])){
+  if(iteration>=80)throw Error('The nonlinear circuit did not converge. Check feedback, source polarity and series resistance.');
+  return solvePrepared(circuit,prepared,{mode,frequency,dt,time,history,diodeStates:updated,opampStates:nextOpampStates,iteration:iteration+1});
+ }
  for(const c of nonlinear)results[c.id].lit=c.type==='led'&&results[c.id].i.re>1e-4;
  return {results,history:next,voltage,topology:top};
 }
