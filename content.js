@@ -1,3 +1,4 @@
+import {lab3Circuits} from './lab3-circuits.js';
 import {labCircuits} from './lab-circuits.js';
 import {homeworkCircuits} from './homework-circuits.js';
 const c=(id,type,x,y,rot,value,extra={})=>({id,type,x,y,rot,value,...extra});
@@ -42,7 +43,7 @@ templates.push(
  {id:'lm741-summing',name:'LM741 inverting summing amplifier',category:'DC NETWORKS',level:'Intermediate',
   description:'Wire the op amp inputs and output to simulate the LM741 in linear operation. Edit Va and Vb, then read Vo at the output node.',
   lesson:'dependent',data:summingAmplifier,mode:'dc'},
- ...homeworkCircuits,...labCircuits
+ ...homeworkCircuits,...labCircuits,...lab3Circuits
 );
 const mit='https://ocw.mit.edu/courses/6-071j-introduction-to-electronics-signals-and-measurement-spring-2006/resources/linear_crct_ana/';
 const rcSource='https://openstax.org/books/university-physics-volume-2/pages/10-5-rc-circuits';

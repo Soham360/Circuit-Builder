@@ -21,6 +21,12 @@ export function initBreadboard({getCircuit,fmt,esc,onSelect,onChange}){
   const holes=dip8Holes(cp[1].hole.column-1),{x,y}=position(holes[0]),bottom=position(holes[7]).y,cy=(y+bottom)/2;
   for(const lead of powerConnections.filter(connection=>connection.component===c.id)){
    const negative=lead.voltage<0,{x:lx,y:ly}=position(lead.hole),pinY=negative?y:bottom;
+   if(lead.tap){
+    const tap=position(lead.tap),color=negative?'#315f80':'#a8372b';
+    const path=`M${tap.x} ${tap.y}V${ly}H${lx}`;
+    html+=`<g data-opamp-rail-tap="${lead.pin}" pointer-events="none"><title>${esc(lead.source)} shared supply to pin ${lead.pin}</title><path d="${path}" fill="none" stroke="#fffef9" stroke-width="7"/><path d="${path}" fill="none" stroke="${color}" stroke-width="3"/><circle cx="${tap.x}" cy="${tap.y}" r="4" fill="${color}"/><circle cx="${lx}" cy="${ly}" r="4" fill="${color}"/><path d="M${lx} ${ly}V${pinY}" stroke="${color}" stroke-width="2" stroke-dasharray="3 4"/></g>`;
+    continue;
+   }
    const by=negative?-86:466,edge=negative?by+40:by,polarity=negative?'−':'+',color=negative?'#315f80':'#a8372b';
    const ground=lead.groundHole&&position(lead.groundHole),returnX=lx-38;
    const bend=edge+(negative?14:-14);

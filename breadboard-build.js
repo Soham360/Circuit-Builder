@@ -26,7 +26,8 @@ export function buildGuide(circuit,plan,fmt){
   if(isVariable(c))terminals.push(`Set the rheostat to ${fmt(effectiveResistance(c),'Ω')} between the used terminals`);
   return {id:c.id,battery:c.battery,text:`${c.id} · ${[type,value,...terminals].filter(Boolean).join(' · ')}`};
  });
- for(const lead of power)add(parts,`DC battery or supply · ${fmt(Math.abs(lead.voltage),'V').trim()}`,`${lead.component} pin ${lead.pin}`);
+ for(const lead of power.filter(lead=>!lead.tap))add(parts,`DC battery or supply · ${fmt(Math.abs(lead.voltage),'V').trim()}`,`${lead.component} pin ${lead.pin}`);
+ for(const lead of power.filter(lead=>lead.tap))add(wires,'Flexible supply jumper',lead.component+' pin '+lead.pin);
  for(const wire of plan.jumpers){
   const type=wire.kitName||'Insulated jumper';
   const span=wireHoleSpan(wire.from,wire.to);
@@ -54,8 +55,8 @@ export function buildGuide(circuit,plan,fmt){
   const root=graph.root(g.hole),name=plan.nets.find(n=>n.node===g.node)?.name??'Unassigned';
   return {id:g.id,root,voltage:g.node===-1?0:voltages.get(root),label:`${boardHoleName(g.hole)} · ${name}`};
  });
- for(const lead of power)probes.push({id:busKey(lead.hole),root:busKey(lead.hole),voltage:lead.voltage,label:`${boardHoleName(lead.hole)} · ${lead.component} pin ${lead.pin}`});
- const supplySteps=power.map(lead=>`${lead.component} pin ${lead.pin}: connect the ${lead.voltage<0?'negative':'positive'} terminal of a ${fmt(Math.abs(lead.voltage),'V').trim()} supply to ${boardHoleName(lead.hole)}. Connect its other terminal to ${lead.groundHole?boardHoleName(lead.groundHole)+' (shared GND)':'a free contact on circuit GND before applying power'}.`);
+ for(const lead of power)probes.push({id:busKey(lead.hole),root:graph.root(lead.tap??lead.hole),voltage:lead.voltage,label:`${boardHoleName(lead.hole)} · ${lead.component} pin ${lead.pin}`});
+ const supplySteps=power.map(lead=>lead.tap?`${lead.component} pin ${lead.pin}: jumper ${boardHoleName(lead.tap)} (${lead.source} supply) to ${boardHoleName(lead.hole)}. Use the battery listed under Placement.`:`${lead.component} pin ${lead.pin}: connect the ${lead.voltage<0?'negative':'positive'} terminal of a ${fmt(Math.abs(lead.voltage),'V').trim()} supply to ${boardHoleName(lead.hole)}. Connect its other terminal to ${lead.groundHole?boardHoleName(lead.groundHole)+' (shared GND)':'a free contact on circuit GND before applying power'}.`);
  return {parts,wires,placement,probes,supplySteps,warnings,simulationError,groundId:ground?busKey(ground):null};
 }
 

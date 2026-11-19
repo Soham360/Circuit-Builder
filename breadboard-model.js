@@ -38,6 +38,22 @@ export function opampBatteryConnections(plan){
  const strips=new Map([ground,...contacts].filter(h=>graph.root(h)===root).map(h=>[busKey(h),h]));
  const occupied=new Set([...contacts,...plan.devices.filter(c=>c.type==='opamp').flatMap(c=>dip8Holes(c.ports.find(p=>p.pin==='B').hole.column-1))].map(holeKey));
  return leads.map(lead=>{
+  const rail=plan.devices.find(c=>c.battery&&!c.unknown&&c.opampRail?.component===lead.component&&c.opampRail.pin===lead.pin&&c.value===Math.abs(lead.voltage));
+  if(rail){
+   const live=rail.ports.find(p=>p.pin===(lead.voltage<0?'B':'A'));
+   const neutral=rail.ports.find(p=>p.pin===(lead.voltage<0?'A':'B'));
+   if(live&&neutral&&live.hole.board===lead.hole.board&&graph.root(neutral.hole)===root){
+    const strip=live.hole;
+    const contacts='pnqr'.includes(strip.row)
+     ?Array.from({length:boardColumns},(_,i)=>({...strip,column:i+1}))
+     :Array.from(rows.indexOf(strip.row)<5?'abcde':'fghij',row=>({...strip,row}));
+    const tap=contacts.find(h=>!occupied.has(holeKey(h)));
+    if(tap){
+     occupied.add(holeKey(tap));
+     return {...lead,tap,source:rail.id,groundHole:neutral.hole};
+    }
+   }
+  }
   const candidates=[...strips.values()].filter(h=>h.board===lead.hole.board).flatMap(h=>{
    if('pnqr'.includes(h.row))return Array.from({length:boardColumns},(_,i)=>({...h,column:i+1}));
    return Array.from(rows.indexOf(h.row)<5?'abcde':'fghij',row=>({...h,row}));

@@ -172,3 +172,9 @@ body[data-view=breadboard] .right-column{width:var(--inspector-width,250px)}
 .build-check input { flex: none; }
 #modal-content details { margin-block: .85rem; }
 #modal-content details summary { cursor: pointer; }
+.lab3-tools h3{margin:1rem 0 .5rem}
+.lab3-tools td input{width:6.5rem;min-width:5rem;padding:.35rem}
+.lab3-tools th[scope="row"]{text-align:center}
+.lab3-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:.65rem}
+.lab3-tools output{display:block;margin-top:.65rem}
+.lab3-plot{display:block;width:min(100%,38rem);height:auto;margin-top:.75rem}
