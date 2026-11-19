@@ -17,6 +17,18 @@ const physicalPins=['A','B','C'];
 export const dip8Holes=column=>Array.from({length:8},(_,i)=>({board:0,column:column+(i<4?i:7-i),row:i<4?'e':'f'}));
 export function breadboardPlan(circuit){
  if(circuit.breadboard?.version===3&&circuit.breadboard.layoutVersion===5&&circuit.breadboard.signature===signature(circuit)){const saved=structuredClone(circuit.breadboard);if(saved.ports?.length<=1200&&saved.jumpers?.length<=3000&&saved.references?.every(r=>validHole(r.hole))&&saved.ports.every(p=>validHole(p.hole))&&saved.jumpers.every(w=>validHole(w.from)&&validHole(w.to))&&auditBreadboard(saved)&&(saved.labMode||!wireIntersections(saved).length))return refreshLabels(saved.labMode?setLabWireMode(saved,true):saved,circuit);}
+ let routingError;
+ for(const lanes of [null,['e'],['e','f'],['f','e'],['c','e'],['c','e','f','h']]){
+  try{return generateBreadboard(circuit,lanes);}
+  catch(error){
+   if(!(error instanceof BreadboardRoutingError))throw error;
+   routingError??=error;
+  }
+ }
+ throw routingError;
+}
+class BreadboardRoutingError extends Error {}
+function generateBreadboard(circuit,preferredLanes){
  const t=topology(circuit),parts=circuit.components.filter(c=>c.type!=='ground'),supplies=parts.filter(c=>c.type==='voltage'),opamps=parts.filter(c=>c.type==='opamp'),ports=[],channels=[];if(!parts.length)throw Error('Add a component before converting to a breadboard.');
  for(const c of parts){const cp=pins(c).map((p,i)=>({component:c.id,pin:physicalPins[i],node:t.node(p)}));if(voltageControlled(c))cp.push({component:c.id,pin:'C+',node:t.node(terminal(circuit,c.controlPositive))},{component:c.id,pin:'C−',node:t.node(terminal(circuit,c.controlNegative))});ports.push(...cp);if(!['voltage','opamp'].includes(c.type))for(let i=0;i<cp.length;i+=2)channels.push(cp.slice(i,i+2));}
  const jumpers=[],rails=[],groups=new Map(),ordered=[...new Set(ports.map(p=>p.node))];
@@ -24,10 +36,10 @@ export function breadboardPlan(circuit){
  // Leave free rows for flat jumpers; pack multiple component rows when needed.
  // Keep the upper half first; use the lower half only when capacity requires it.
  const blocksFor=lanes=>{let column=3;const blocks=[];for(let i=0;i<channels.length;i+=lanes.length){const nodes=ordered.filter(n=>channels.slice(i,i+lanes.length).some(pair=>pair.some(p=>p.node===n)));blocks.push({column,nodes});column+=Math.max(1,nodes.length)*3;}return{blocks,end:column};};
- let lanes=['e'],packed=blocksFor(lanes);
- if(packed.end+opamps.length*6+Math.max(0,supplies.length-1)*8>boardColumns-3){lanes=['c','e'];packed=blocksFor(lanes);}
- if(packed.end+opamps.length*6>boardColumns-1){lanes=['c','e','f','h'];packed=blocksFor(lanes);}
- if(packed.end+opamps.length*6>boardColumns-1)throw Error('This circuit exceeds a full-size breadboard. Reduce the component count.');
+ let lanes=preferredLanes??['e'],packed=blocksFor(lanes);
+ if(!preferredLanes&&packed.end+opamps.length*6+Math.max(0,supplies.length-1)*8>boardColumns-3){lanes=['c','e'];packed=blocksFor(lanes);}
+ if(!preferredLanes&&packed.end+opamps.length*6>boardColumns-1){lanes=['c','e','f','h'];packed=blocksFor(lanes);}
+ if(packed.end+opamps.length*6>boardColumns-1)throw new BreadboardRoutingError('This circuit exceeds a full-size breadboard. Reduce the component count.');
  channels.forEach((pair,i)=>{const block=packed.blocks[Math.floor(i/lanes.length)],row=lanes[i%lanes.length],half=rows.indexOf(row)<5?0:1;pair.forEach((p,j)=>{const column=block.column+block.nodes.indexOf(p.node)*3,k=`${p.node}:${column}:${half}`;if(!groups.has(k))groups.set(k,{node:p.node,board:0,half,column,hole:{board:0,column,row:half?'i':'b'}});p.hole={board:0,column,row};if(j&&holeKey(p.hole)===holeKey(pair[0].hole))p.hole.row=half?'i':'d';});});
  const packageHoles=[];
  for(const [i,c] of opamps.entries()){
@@ -42,23 +54,26 @@ export function breadboardPlan(circuit){
  }
  supplies.slice(0,1).forEach(c=>{ports.filter(p=>p.component===c.id).forEach((p,j)=>{p.hole={board:0,column:2+j*5,row:j^(c.value<0?1:0)?'n':'p'};rails.push({board:0,row:p.hole.row,node:p.node,component:c.id,pin:p.pin});});});
  // Extra batteries land on dedicated isolated strips, never on shared power rails.
- supplies.slice(1).forEach((c,i)=>{const column=Math.max(12,packed.end+opamps.length*6+2)+i*8;if(column+4>boardColumns)throw Error('The batteries and components exceed this full-size breadboard.');ports.filter(p=>p.component===c.id).forEach((p,j)=>{p.hole={board:0,column:column+j*4,row:'a'};groups.set(`battery:${c.id}:${j}`,{node:p.node,battery:true,board:0,half:0,column:p.hole.column,hole:{...p.hole,row:'b'}});});});
+ supplies.slice(1).forEach((c,i)=>{const column=Math.max(12,packed.end+opamps.length*6+2)+i*8;if(column+4>boardColumns)throw new BreadboardRoutingError('The batteries and components exceed this full-size breadboard.');ports.filter(p=>p.component===c.id).forEach((p,j)=>{p.hole={board:0,column:column+j*4,row:'a'};const sharedRail=preferredLanes&&rails.find(r=>r.node===p.node);if(sharedRail){jumpers.push({from:{...p.hole,row:sharedRail.row},to:{...p.hole,row:'a'},node:p.node,kind:'battery-feed'});p.hole.row='b';return;}groups.set(`battery:${c.id}:${j}`,{node:p.node,battery:true,board:0,half:0,column:p.hole.column,hole:{...p.hole,row:'b'}});});});
  // Power feeds stop at a, above the component bodies on c and e.
  // Additional supplies use isolated terminal strips instead of sharing battery rails.
- for(const node of ordered){const gs=[...groups.values()].filter(g=>g.node===node),rail=rails.find(r=>r.node===node);if(rail){if(gs.some(g=>g.half)){const column=rail.row==='p'?1:boardColumns; jumpers.push({from:{board:0,column,row:rail.row},to:{board:0,column,row:rail.row==='p'?'q':'r'},node,kind:'rail-bridge'});}for(const g of gs.filter(g=>!g.battery))jumpers.push({from:{board:0,column:g.column,row:g.half?(rail.row==='p'?'q':'r'):rail.row},to:{...g.hole,row:g.half?'j':'a'},node,component:rail.component,pin:rail.pin,kind:'rail-feed'});for(const g of gs.filter(g=>g.battery)){const anchor=gs.find(g=>!g.battery);jumpers.push({from:anchor?{...anchor.hole}:{board:0,column:g.column+1,row:rail.row},to:{...g.hole},node,kind:'strip-link'});}}else for(let i=1;i<gs.length;i++){const a=gs[i-1].hole,b=gs[i].hole;if(a.row!==b.row)jumpers.push({from:{...a,row:a.row==='b'?'d':a.row},to:{...a,row:b.row},node,kind:'strip-link'});if(a.column!==b.column)jumpers.push({from:{...a,row:b.row},to:{...b},node,kind:'strip-link'});}}
+ for(const node of ordered){const gs=[...groups.values()].filter(g=>g.node===node),rail=rails.find(r=>r.node===node);if(rail){if(gs.some(g=>g.half)){const column=rail.row==='p'?1:boardColumns; jumpers.push({from:{board:0,column,row:rail.row},to:{board:0,column,row:rail.row==='p'?'q':'r'},node,kind:'rail-bridge'});}for(const g of gs.filter(g=>!g.battery))jumpers.push({from:{board:0,column:g.column,row:g.half?(rail.row==='p'?'q':'r'):rail.row},to:{...g.hole,row:g.half?'j':'a'},node,component:rail.component,pin:rail.pin,kind:'rail-feed'});for(const g of gs.filter(g=>g.battery)){const anchor=gs.find(g=>!g.battery&&!g.half);jumpers.push({from:anchor?{...anchor.hole}:{board:0,column:g.column+1,row:rail.row},to:{...g.hole},node,kind:'strip-link'});}}else for(let i=1;i<gs.length;i++){const a=gs[i-1].hole,b=gs[i].hole;if(a.row!==b.row)jumpers.push({from:{...a,row:a.row==='b'?'d':a.row},to:{...a,row:b.row},node,kind:'strip-link'});if(a.column!==b.column)jumpers.push({from:{...a,row:b.row},to:{...b},node,kind:'strip-link'});}}
  const count=1;
  // Flat jumper kits use one straight insulated span between two bent pins.
  // Resistor bodies are drawn above these wires; only attachment holes are occupied.
  const occupied=new Set([...ports.map(p=>p.hole),...packageHoles].map(holeKey)),fixed=jumpers.filter(w=>w.kind!=='strip-link'||w.from.column===w.to.column);
  for(const w of fixed){occupied.add(holeKey(w.from));occupied.add(holeKey(w.to));}
  for(const w of jumpers.filter(w=>w.kind==='strip-link'&&w.from.row!==w.to.row)){
-  if('pnqr'.includes(w.from.row)){const used=new Set([...ports.map(p=>busKey(p.hole)),...jumpers.flatMap(w=>[busKey(w.from),busKey(w.to)])]);let column=boardColumns-1;while(column>0&&used.has(busKey({...w.to,column})))column--;if(!column)throw Error('No free strip for a battery jumper.');const h={...w.to,column};const feed={from:{...w.from,column},to:{...h},node:w.node,kind:'battery-feed'};jumpers.push(feed);fixed.push(feed);occupied.add(holeKey(feed.from));occupied.add(holeKey(feed.to));w.from=h;}
+  if('pnqr'.includes(w.from.row)){const used=new Set([...ports.map(p=>busKey(p.hole)),...jumpers.flatMap(w=>[busKey(w.from),busKey(w.to)])]);let column=boardColumns-1;while(column>0&&used.has(busKey({...w.to,column})))column--;if(!column)throw new BreadboardRoutingError('No free strip for a battery jumper.');const h={...w.to,column};const feed={from:{...w.from,column},to:{...h},node:w.node,kind:'battery-feed'};jumpers.push(feed);fixed.push(feed);occupied.add(holeKey(feed.from));occupied.add(holeKey(feed.to));w.from=h;}
  }
  const links=jumpers.filter(w=>w.kind==='strip-link'&&w.from.column!==w.to.column).sort((a,b)=>Math.abs(b.to.column-b.from.column)-Math.abs(a.to.column-a.from.column));
  const assigned=[];
  const place=i=>{if(i===links.length)return true;const w=links[i],lo=Math.min(w.from.column,w.to.column),hi=Math.max(w.from.column,w.to.column),candidates=rows.indexOf(w.to.row)<5?'bdace':'ighfj';for(const row of candidates){const from={...w.from,row},to={...w.to,row},keys=[holeKey(from),holeKey(to)];if(keys.some(k=>occupied.has(k)))continue;if(assigned.some(v=>v.row===row&&lo<=v.hi&&hi>=v.lo))continue;if(fixed.some(v=>jumpersIntersect({from,to},v)))continue;keys.forEach(k=>occupied.add(k));assigned.push({row,lo,hi});const old=[w.from,w.to];w.from=from;w.to=to;if(place(i+1))return true;[w.from,w.to]=old;assigned.pop();keys.forEach(k=>occupied.delete(k));}return false;};
- if(!place(0))throw Error('This circuit needs more free terminal rows for straight jumpers.');
- jumpers.forEach((w,i)=>{w.id='J'+(i+1);w.color=netColors[(w.node+1)%netColors.length];});for(const p of ports)p.hub={...p.hole};const groundPort=ports.find(p=>p.node<0),references=circuit.components.filter(c=>c.type==='ground').map(c=>({component:c.id,hole:groundPort?{...groundPort.hole}:{board:0,column:60,row:'e'}}));const plan={version:3,layoutVersion:5,ports,jumpers,rails,references,boardCount:count,devices:parts.map(c=>({...c,ports:ports.filter(p=>p.component===c.id),battery:c.type==='voltage',external:['current','ac',...dependentTypes].includes(c.type)})),nets:ordered.map(node=>({node,name:node<0?'GND':'N'+(node+1),color:netColors[(node+1)%netColors.length],groups:[...groups.values()].filter(g=>g.node===node).map(g=>({...g.hole,row:g.half?'f':'a'})),ports:ports.filter(p=>p.node===node)}))};assertGeneratedConnections(plan);return labelNets(circuit.breadboard?.labMode?setLabWireMode(plan,true):plan,circuit);
+ if(!place(0))throw new BreadboardRoutingError('This circuit needs more free terminal rows for straight jumpers.');
+ jumpers.forEach((w,i)=>{w.id='J'+(i+1);w.color=netColors[(w.node+1)%netColors.length];});for(const p of ports)p.hub={...p.hole};const groundPort=ports.find(p=>p.node<0),references=circuit.components.filter(c=>c.type==='ground').map(c=>({component:c.id,hole:groundPort?{...groundPort.hole}:{board:0,column:60,row:'e'}}));const plan={version:3,layoutVersion:5,ports,jumpers,rails,references,boardCount:count,devices:parts.map(c=>({...c,ports:ports.filter(p=>p.component===c.id),battery:c.type==='voltage',external:['current','ac',...dependentTypes].includes(c.type)})),nets:ordered.map(node=>({node,name:node<0?'GND':'N'+(node+1),color:netColors[(node+1)%netColors.length],groups:[...groups.values()].filter(g=>g.node===node).map(g=>({...g.hole,row:g.half?'f':'a'})),ports:ports.filter(p=>p.node===node)}))};try{assertGeneratedConnections(plan);}
+ catch(error){throw new BreadboardRoutingError(error.message,{cause:error});}
+ if(!auditBreadboard(plan))throw new BreadboardRoutingError('Could not route this circuit without changing its connections.');
+ return labelNets(circuit.breadboard?.labMode?setLabWireMode(plan,true):plan,circuit);
 }
 export function auditBreadboard(plan){const graph=boardGraph(plan),actual=new Map(),expected=new Map(),occupied=new Set();for(const p of plan.ports){if(!validHole(p.hole)||occupied.has(holeKey(p.hole)))return false;occupied.add(holeKey(p.hole));const root=graph.root(p.hole);if(actual.has(root)&&actual.get(root)!==p.node)return false;if(expected.has(p.node)&&expected.get(p.node)!==root)return false;actual.set(root,p.node);expected.set(p.node,root);}return true;}
 export function jumperRoute(w,index=0,board=w.from.board){const a=position(w.from.board===board?w.from:w.to);if(w.from.board!==w.to.board)return[a,{x:a.x,y:-100}];const b=position(w.to);if(a.x!==b.x&&a.y!==b.y)throw Error('A jumper must run in one horizontal or vertical direction.');return[a,b];}

@@ -18,8 +18,15 @@ export function initBreadboard({getCircuit,fmt,esc,onSelect,onChange}){
  if(c.type==='opamp'){
   if(cp[0].hole.board!==board)continue;
   const holes=dip8Holes(cp[1].hole.column-1),{x,y}=position(holes[0]),bottom=position(holes[7]).y,cy=(y+bottom)/2;
-  const legs=holes.map((hole,i)=>{const p=position(hole),edge=i<4?cy-19:cy+19;return `<path d="M${p.x} ${p.y}V${edge}" stroke="#767c80" stroke-width="4"/><text x="${p.x}" y="${i<4?y-8:bottom+13}" text-anchor="middle" font-size="9" fill="#253c34">${i+1}${({1:'−',2:'+',5:' OUT'})[i]||''}</text>`;}).join('');
-  html+=`<g class="${selectedPart?.id===c.id?'linked-selection':''}" data-board-part="${esc(c.id)}" data-board-pair="0" role="button" tabindex="0" aria-label="${esc(c.id)} LM741 DIP-8"><title>LM741 · 2 inverting · 3 non-inverting · 6 output. Supply pins 4 and 7 are implicit in the linear simulation.</title>${legs}<rect x="${x-9}" y="${cy-19}" width="72" height="38" rx="4" fill="#303b3f"/><path d="M${x-9} ${cy-5}a5 5 0 0 1 0 10" fill="#b7bcb8"/><circle cx="${x}" cy="${cy-12}" r="2" fill="#c6d0c9"/><text x="${x+27}" y="${cy+4}" text-anchor="middle" font-size="11" fill="white">${esc(c.id)} LM741</text></g>`;
+  const pinLabels=[
+   ['OFS','Offset null'],['IN−','Inverting input'],['IN+','Non-inverting input'],['V−','Negative supply'],
+   ['OFS','Offset null'],['OUT','Output'],['V+','Positive supply'],['NC','No connection']
+  ];
+  const legs=holes.map((hole,i)=>{
+   const p=position(hole),top=i<4,[label,description]=pinLabels[i];
+   return `<g><title>Pin ${i+1} · ${description}</title><path d="M${p.x} ${p.y}V${cy+(top?-20:20)}" stroke="#8b9294" stroke-width="5"/><g text-anchor="middle" fill="#253c34" stroke="#fffef9" stroke-width="2.5" paint-order="stroke" font-size="9" font-weight="700"><text x="${p.x}" y="${top?y-6:bottom+11}">${i+1}</text><text x="${p.x}" y="${top?y-17:bottom+22}">${label}</text></g></g>`;
+  }).join('');
+  html+=`<g class="${selectedPart?.id===c.id?'linked-selection':''}" data-board-part="${esc(c.id)}" data-board-pair="0" role="button" tabindex="0" aria-label="${esc(c.id)} LM741 DIP-8"><title>LM741 · Supply pins 4 and 7 are implicit in the linear simulation.</title>${legs}<path d="M${x-9} ${cy-20}h72v40h-72v-13a7 7 0 0 0 0-14z" fill="#30383b" stroke="#141a1c" stroke-width="1.5"/><circle cx="${x}" cy="${cy-12}" r="2" fill="#c6d0c9"/><text x="${x+27}" y="${cy+4}" text-anchor="middle" font-size="11" fill="white">${esc(c.id)} LM741</text></g>`;
   continue;
  }
  for(let pairIndex=0;pairIndex<cp.length/2;pairIndex++){const pair=cp.slice(pairIndex*2,pairIndex*2+2);if(pair[0].hole.board!==board)continue;const a=position(pair[0].hole),b=position(pair[1].hole),x=(a.x+b.x)/2,y=(a.y+b.y)/2,vertical=a.x===b.x,length=Math.hypot(b.x-a.x,b.y-a.y),reading=esc(c.unknown?'?':isContact(c)?(c.closed?'Closed':'Open'):isVariable(c)?fmt(effectiveResistance(c),'Ω'):fmt(c.value,({'resistor':'Ω','capacitor':'F','inductor':'H','voltage':'V','ac':'V','current':'A','vcvs':'V/V','vccs':'S','ccvs':'Ω','cccs':'A/A','potentiometer':'Ω','led':'V','diode':'V'})[c.type]||''));let body;

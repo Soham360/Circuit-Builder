@@ -69,3 +69,25 @@ test('the screenshot circuit maps each LM741 pin to the correct breadboard net',
  const rebuilt=circuitFromBreadboard(circuit,plan);
  assert.ok(Math.abs(solve(rebuilt).results.U1.v.re-expected)<0.00001);
 });
+
+test('the six-resistor summing amplifier routes on one board without jumper crossings',()=>{
+ const {circuit}=decodeCircuit(readFileSync(new URL('../examples/lm741-screenshot-circuit.json',import.meta.url),'utf8'));
+ circuit.components.find(c=>c.id==='R4').value=5000;
+ circuit.components.find(c=>c.id==='R5').value=10000;
+ circuit.components.find(c=>c.id==='V2').value=1.63;
+ circuit.components.find(c=>c.id==='G1').y=360;
+ circuit.components.push({id:'R6',type:'resistor',x:696,y:312,rot:90,value:1e6});
+ circuit.wires.at(8).points.pop();
+ const plan=breadboardPlan(circuit);
+ assert.equal(plan.boardCount,1);
+ assert.equal(plan.devices.filter(c=>c.type==='resistor').length,6);
+ const graph=boardGraph(plan);
+ const root=(id,pin)=>graph.root(plan.ports.find(p=>p.component===id&&p.pin===pin).hole);
+ assert.equal(root('R6','A'),root('U1','C'));
+ assert.equal(root('R6','B'),root('V1','B'));
+ assert.notEqual(root('R6','A'),root('R6','B'));
+ const expected=-(10000/40000*9+10000/25000*1.63);
+ const original=solve(circuit).results.U1.v.re;
+ assert.ok(Math.abs(original-expected)<0.0001);
+ assert.equal(solve(circuitFromBreadboard(circuit,plan)).results.U1.v.re,original);
+});
