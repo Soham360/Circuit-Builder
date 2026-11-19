@@ -1,6 +1,6 @@
 import {decodeCircuit,encodeCircuit,analysisSettings,validateCircuit} from './circuit-file.js';
 import {mountUX,looseEnd,moveAttached,connectionIssues} from './ux.js';
-import {opampPowerLeads} from './breadboard-model.js';
+import {boardHoleName,buildGuide,meterCheck} from './breadboard-build.js';
 import {isContact,isDiode,isVariable,effectiveResistance,deviceSymbols,opampSupply} from './devices.js';
 import {initLabTools} from './lab-ui.js';
 let labUI=null;
@@ -145,11 +145,69 @@ $$('[data-dock]').forEach(b=>b.onclick=()=>{dockPanel=b.dataset.dock;setDock();}
 $('#toggle-controls').onclick=()=>document.body.classList.toggle('controls-open');$('#close-controls').onclick=()=>document.body.classList.remove('controls-open');
 $('#quick-run').onclick=()=>homeworkMode?homeworkUI?.work():run();$('#view-schematic').onclick=()=>setDiagram('schematic');$('#view-breadboard').onclick=()=>setDiagram('breadboard');setDock();
 let initialSize=true;new ResizeObserver(entries=>{const {width,height}=entries[0].contentRect;if(!width||!height)return;if(initialSize){initialSize=false;fitCircuit();}else{const cx=view.x+view.w/2,cy=view.y+view.h/2,ratio=width/height;if(ratio>view.w/view.h)view.w=view.h*ratio;else view.h=view.w/ratio;view.x=cx-view.w/2;view.y=cy-view.h/2;renderCanvas();}}).observe($('#canvas'));
+const buildProgress=new Map();
 document.addEventListener('show-board-wiring',e=>{
- const plan=e.detail,steps=plan.jumpers,done=new Set(),power=plan.devices.filter(c=>c.type==='opamp').flatMap(opampPowerLeads);let index=0;
- const show=()=>{const w=steps[index],hole=h=>'Board '+(h.board+1)+' '+h.row.toUpperCase()+h.column;
- modal(`<h2>Breadboard assembly</h2><p>${done.size} / ${steps.length} jumpers complete</p>${w?`<h3>${esc(w.id)}: ${esc(w.kitName||'Any wire color')}</h3><p>${esc(hole(w.from))} to ${esc(hole(w.to))} · ${w.holes||'Any'} holes</p><label><input id="step-done" type="checkbox" ${done.has(w.id)?'checked':''}> Complete</label><button class="button" id="step-locate">Locate on board</button>`:'<p>No jumpers required.</p>'}<div class="modal-pager"><button class="button" id="step-prev" ${index===0?'disabled':''}>Previous</button><span>${steps.length?index+1:0} / ${steps.length}</span><button class="button" id="step-next" ${index>=steps.length-1?'disabled':''}>Next</button></div>${power.length?`<details open><summary>Op-amp power</summary>${power.map(({component,pin,voltage,hole:contact})=>`<p>${esc(component)} pin ${pin}: connect the ${voltage<0?'negative':'positive'} terminal of a ${Math.abs(voltage)} V battery to ${hole(contact)}. Connect its other terminal to circuit GND.</p>`).join('')}</details>`:''}<details><summary>Component placement</summary>${plan.ports.map(p=>`<p>${esc(p.component+'.'+p.pin)}: ${esc(hole(p.hole))}</p>`).join('')}</details>`);
- $('#step-prev').onclick=()=>{index--;show();};$('#step-next').onclick=()=>{index++;show();};if(w){breadboardUI.focusStep(w);$('#step-done').onchange=e=>{if(e.target.checked)done.add(w.id);else done.delete(w.id);show();};$('#step-locate').onclick=()=>{$('#modal').close();setDiagram('breadboard');breadboardUI.focusStep(w);};}};show();
+ const plan=e.detail,guide=buildGuide(circuit,plan,fmt),steps=plan.jumpers,hole=boardHoleName;
+ const checklist=[
+  ...guide.placement.map(p=>[(p.battery?'source:':'part:')+p.id,p.text]),
+  ...guide.supplySteps.map((text,i)=>['power:'+i,text]),
+  ['check:continuity','With all sources disconnected, verify intended connections and check for a direct short between supply and ground.']
+ ];
+ const wireText=w=>`${w.id} · ${w.kitName||'Insulated jumper'} · ${hole(w.from)} → ${hole(w.to)}`;
+ const layoutKey=JSON.stringify([checklist,steps.map(wireText)]);
+ if(!buildProgress.has(layoutKey))buildProgress.set(layoutKey,new Set());
+ const done=buildProgress.get(layoutKey),tabs=[['assembly','Assembly'],['parts','Parts & wires'],['meter','Meter checks']];
+ const ground=guide.probes.find(p=>p.id===guide.groundId)??guide.probes[0];
+ let tab='assembly',index=0,red=guide.probes.find(p=>p!==ground)?.id,black=ground?.id;
+ const list=entries=>Array.from(entries,([label,ids])=>`<p><strong>${ids.length} × ${esc(label)}</strong><br>${esc(ids.join(', '))}</p>`).join('');
+ const check=(id,label)=>`<label class="build-check"><input type="checkbox" data-build-check="${esc(id)}" ${done.has(id)?'checked':''}>${esc(label)}</label>`;
+ function show(){
+  const w=steps[index];
+  let body;
+  if(tab==='assembly'){
+   body=`<p id="build-progress"></p><p>Place components and jumpers with all power sources disconnected. Complete the continuity checks before connecting the supplies.</p>
+   <details open><summary>Place components</summary>${checklist.filter(([id])=>id.startsWith('part:')).map(([id,label])=>check(id,label)).join('')}</details>
+   <details open><summary>Install jumpers</summary>${w?`${check('wire:'+w.id,wireText(w))}<button class="button" id="step-locate">Locate on board</button>`:'<p>No jumpers required.</p>'}
+   <div class="modal-pager"><button class="button" id="step-prev" ${index===0?'disabled':''}>Previous</button><span>${steps.length?index+1:0} / ${steps.length}</span><button class="button" id="step-next" ${index>=steps.length-1?'disabled':''}>Next</button></div></details>
+   <details open><summary>Verify and connect power</summary>${checklist.filter(([id])=>!id.startsWith('part:')).reverse().map(([id,label])=>check(id,label)).join('')}</details>`;
+  }else if(tab==='parts'){
+   body=`<h3>Components and supplies</h3><p>${plan.boardCount} × full-size breadboard</p>${list(guide.parts)}<h3>Jumpers</h3>${list(guide.wires)||'<p>No jumpers required.</p>'}<p>Supply battery leads are separate from the jumper count.</p><button class="button" id="copy-build">Copy build sheet</button>`;
+  }else{
+   const probeOptions=selected=>guide.probes.map(p=>`<option value="${esc(p.id)}" ${p.id===selected?'selected':''}>${esc(p.label)}</option>`).join('');
+   body=`<p>Disconnect every source for continuity checks. Reconnect power for DC voltage checks.</p>
+   <label class="field-label" for="meter-black">Black probe</label><select id="meter-black">${probeOptions(black)}</select>
+   <label class="field-label" for="meter-red">Red probe</label><select id="meter-red">${probeOptions(red)}</select>
+   <p id="meter-reading" role="status"></p>
+   ${guide.simulationError?`<p>DC prediction unavailable. ${esc(guide.simulationError)}</p>`:''}
+   ${guide.warnings.length?`<h3>Checks to review</h3>${guide.warnings.map(warning=>`<p>${esc(warning)}</p>`).join('')}`:''}`;
+  }
+  modal(`<h2>Breadboard build guide</h2><div class="property-tabs">${tabs.map(([id,label])=>`<button class="${tab===id?'active':''}" data-build-tab="${id}" aria-pressed="${tab===id}">${label}</button>`).join('')}</div>${body}`);
+  $$('[data-build-tab]').forEach(button=>button.onclick=()=>{tab=button.dataset.buildTab;show();});
+  if(tab==='assembly'){
+   const update=()=>{$('#build-progress').textContent=`${done.size} / ${checklist.length+steps.length} checks complete`;};
+   $$('[data-build-check]').forEach(input=>input.onchange=()=>{if(input.checked)done.add(input.dataset.buildCheck);else done.delete(input.dataset.buildCheck);update();});
+   update();
+   $('#step-prev').onclick=()=>{index--;show();};
+   $('#step-next').onclick=()=>{index++;show();};
+   if(w)$('#step-locate').onclick=()=>{$('#modal').close();setDiagram('breadboard');breadboardUI.focusStep(w);};
+  }
+  if(tab==='parts')$('#copy-build').onclick=async()=>{
+   const inventory=entries=>Array.from(entries,([label,ids])=>`${ids.length} × ${label} (${ids.join(', ')})`);
+   const sheet=['Breadboard build sheet',`${plan.boardCount} × full-size breadboard`,...inventory(guide.parts),...inventory(guide.wires),'','Placement',...guide.placement.filter(p=>!p.battery).map(p=>p.text),'','Jumpers',...steps.map(wireText),'','Verify continuity with sources disconnected, then connect power.',...guide.placement.filter(p=>p.battery).map(p=>p.text),...guide.supplySteps,...guide.warnings].join('\n');
+   try{await navigator.clipboard.writeText(sheet);toast('Build sheet copied.');}catch{$('#copy-build').insertAdjacentHTML('afterend',`<textarea aria-label="Build sheet" rows="10" readonly>${esc(sheet)}</textarea>`);$('#copy-build').nextElementSibling.select();}
+  };
+  if(tab==='meter'){
+   const update=()=>{
+    black=$('#meter-black').value;red=$('#meter-red').value;
+    const a=guide.probes.find(p=>p.id===red),b=guide.probes.find(p=>p.id===black);
+    if(!a||!b){$('#meter-reading').textContent='No probe points available.';return;}
+    const result=meterCheck(a,b);
+    $('#meter-reading').textContent=`${result.sameNet?'Same net. Expect direct continuity.':'Different nets. Components between them can affect a continuity reading.'} Expected DC (red − black): ${result.dc===null?'unavailable':fmt(result.dc,'V').trim()}.`;
+   };
+   $('#meter-black').onchange=$('#meter-red').onchange=update;update();
+  }
+ }
+ show();
 });
 
 $('#library-prev').onclick=()=>{libraryPage--;renderLibrary();};$('#library-next').onclick=()=>{libraryPage++;renderLibrary();};$('#lesson-picker').onchange=e=>{lessonId=e.target.value;lessonStep=0;renderLesson();};

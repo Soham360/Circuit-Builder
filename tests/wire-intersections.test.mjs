@@ -31,7 +31,7 @@ test('older saved crossing routes are repaired without changing any electrical c
  const c=structuredClone(templates.find(t=>t.id==='bridge').data),p=setLabWireMode(breadboardPlan(c),true);
  p.labRoutingVersion=2;p.jumpers.push(dressLabWire(wire('OldBrown',h(17,'a'),h(17,'h'))));
  assert.ok(wireIntersections(p).length);
- const repaired=setLabWireMode(p,true);assert.deepEqual(wireIntersections(repaired),[]);assert.equal(repaired.labRoutingVersion,3);assert.deepEqual(repaired.ports,p.ports);
+ const repaired=setLabWireMode(p,true);assert.deepEqual(wireIntersections(repaired),[]);assert.equal(repaired.labRoutingVersion,4);assert.deepEqual(repaired.ports,p.ports);
  assert.deepEqual(circuitFromBreadboard(c,repaired).wires,c.wires);
 });
 for(const t of templates)test(t.id+': unrestricted generated wires never intersect',()=>{

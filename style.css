@@ -162,3 +162,13 @@ body[data-view=breadboard] .right-column{width:var(--inspector-width,250px)}
 
 #breadboard-view:fullscreen{background:#fcfdf9;width:100%;height:100%;border:0}
 #breadboard-view:fullscreen #breadboard-canvas{min-height:0;flex:1 1 0}
+
+.build-check {
+  display: flex;
+  align-items: baseline;
+  gap: .6rem;
+  margin: .55rem 0;
+}
+.build-check input { flex: none; }
+#modal-content details { margin-block: .85rem; }
+#modal-content details summary { cursor: pointer; }
