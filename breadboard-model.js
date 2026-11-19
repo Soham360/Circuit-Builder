@@ -26,6 +26,30 @@ export function opampPowerLeads(component){
   {component:component.id,pin:7,voltage:positiveRail,hole:{...input,row:'j'}}
  ];
 }
+// Assign a separate vacant contact for each battery return on the same
+// physical ground net, including any ground rail fed by a jumper.
+export function opampBatteryConnections(plan){
+ const leads=plan.devices.filter(c=>c.type==='opamp').flatMap(opampPowerLeads);
+ if(!leads.length)return [];
+ const contacts=[...plan.ports.map(p=>p.hole),...plan.jumpers.flatMap(w=>[w.from,w.to])];
+ const ground=plan.references[0]?.hole??plan.ports.find(p=>p.node<0)?.hole;
+ if(!ground)return leads;
+ const graph=boardGraph(plan),root=graph.root(ground);
+ const strips=new Map([ground,...contacts].filter(h=>graph.root(h)===root).map(h=>[busKey(h),h]));
+ const occupied=new Set([...contacts,...plan.devices.filter(c=>c.type==='opamp').flatMap(c=>dip8Holes(c.ports.find(p=>p.pin==='B').hole.column-1))].map(holeKey));
+ return leads.map(lead=>{
+  const candidates=[...strips.values()].filter(h=>h.board===lead.hole.board).flatMap(h=>{
+   if('pnqr'.includes(h.row))return Array.from({length:boardColumns},(_,i)=>({...h,column:i+1}));
+   return Array.from(rows.indexOf(h.row)<5?'abcde':'fghij',row=>({...h,row}));
+  }).filter(h=>!occupied.has(holeKey(h)));
+  const nearSide=lead.voltage<0?'pn':'qr';
+  const cost=h=>(nearSide.includes(h.row)?0:1000)+('pnqr'.includes(h.row)?0:100)+Math.abs(h.column-(lead.hole.column-2));
+  candidates.sort((a,b)=>cost(a)-cost(b));
+  const groundHole=candidates[0];
+  if(groundHole)occupied.add(holeKey(groundHole));
+  return {...lead,groundHole};
+ });
+}
 const usesPowerStrip=(plan,hole)=>plan.devices?.some(c=>c.type==='opamp'&&opampPowerLeads(c).some(lead=>busKey(lead.hole)===busKey(hole)));
 export function breadboardPlan(circuit){
  if(circuit.breadboard?.version===3&&circuit.breadboard.layoutVersion===5&&circuit.breadboard.signature===signature(circuit)){const saved=structuredClone(circuit.breadboard);if(saved.ports?.length<=1200&&saved.jumpers?.length<=3000&&saved.references?.every(r=>validHole(r.hole))&&saved.ports.every(p=>validHole(p.hole))&&saved.jumpers.every(w=>validHole(w.from)&&validHole(w.to))&&auditBreadboard(saved)&&(saved.labMode||!wireIntersections(saved).length))return refreshLabels(saved.labMode?setLabWireMode(saved,true):saved,circuit);}

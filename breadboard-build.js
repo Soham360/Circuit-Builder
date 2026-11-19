@@ -1,4 +1,4 @@
-import {boardGraph,busKey,opampPowerLeads} from './breadboard-model.js';
+import {boardGraph,busKey,opampBatteryConnections} from './breadboard-model.js';
 import {boardConnections,jumperConnectionProblems,wireIntersections} from './breadboard-connections.js';
 import {effectiveResistance,isVariable} from './devices.js';
 import {wireHoleSpan} from './lab-wires.js';
@@ -8,7 +8,7 @@ export const boardHoleName=h=>`Board ${h.board+1} · ${h.row.toUpperCase()}${h.c
 
 export function buildGuide(circuit,plan,fmt){
  const graph=boardGraph(plan),parts=new Map(),wires=new Map(),voltages=new Map(),warnings=[];
- const power=plan.devices.filter(c=>c.type==='opamp').flatMap(opampPowerLeads);
+ const power=opampBatteryConnections(plan);
  const ground=plan.ports.find(p=>p.node<0&&'pnqr'.includes(p.hole.row))?.hole??plan.references[0]?.hole;
  const add=(map,label,id)=>{if(!map.has(label))map.set(label,[]);map.get(label).push(id);};
  const units={resistor:'Ω',capacitor:'F',inductor:'H',potentiometer:'Ω',voltage:'V',current:'A',ac:'V',led:'V',diode:'V'};
@@ -32,7 +32,7 @@ export function buildGuide(circuit,plan,fmt){
   const span=wireHoleSpan(wire.from,wire.to);
   add(wires,span?`${type} · ${span} holes`:type,wire.id);
  }
- if(power.length&&!ground)warnings.push('Add a circuit ground to locate the shared return for the op-amp supplies.');
+ if(power.some(lead=>!lead.groundHole))warnings.push('A battery return has no free contact. Add a connected ground strip or free a hole on the ground net.');
  for(const problem of jumperConnectionProblems(plan))warnings.push(`${problem.wire} at ${boardHoleName(problem.hole)} · ${problem.reason}`);
  for(const [a,b] of wireIntersections(plan))warnings.push(`${a} crosses ${b}. Verify wire clearance.`);
  if(plan.devices.some(c=>c.external))warnings.push('External sources may need lab equipment. Check source polarity and use a shared reference where the schematic shows ground.');
@@ -55,7 +55,7 @@ export function buildGuide(circuit,plan,fmt){
   return {id:g.id,root,voltage:g.node===-1?0:voltages.get(root),label:`${boardHoleName(g.hole)} · ${name}`};
  });
  for(const lead of power)probes.push({id:busKey(lead.hole),root:busKey(lead.hole),voltage:lead.voltage,label:`${boardHoleName(lead.hole)} · ${lead.component} pin ${lead.pin}`});
- const supplySteps=power.map(lead=>`${lead.component} pin ${lead.pin}: connect the ${lead.voltage<0?'negative':'positive'} terminal of a ${fmt(Math.abs(lead.voltage),'V').trim()} supply to ${boardHoleName(lead.hole)}. Connect its other terminal to ${ground?boardHoleName(ground)+' (GND) or another hole on that net':'circuit GND'}.`);
+ const supplySteps=power.map(lead=>`${lead.component} pin ${lead.pin}: connect the ${lead.voltage<0?'negative':'positive'} terminal of a ${fmt(Math.abs(lead.voltage),'V').trim()} supply to ${boardHoleName(lead.hole)}. Connect its other terminal to ${lead.groundHole?boardHoleName(lead.groundHole)+' (shared GND)':'a free contact on circuit GND before applying power'}.`);
  return {parts,wires,placement,probes,supplySteps,warnings,simulationError,groundId:ground?busKey(ground):null};
 }
 
