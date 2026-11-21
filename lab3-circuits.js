@@ -3,7 +3,7 @@ import {pins} from './solver.js';
 export const resistorPairs=[[4700,4700],[4700,8200],[1500,4700],[1500,8200]];
 export const summingPairs=[[9,1.5],[-9,-9],[1.5,0],[1.5,9],[0,-1.5]];
 
-const supply={negativeRail:-9,positiveRail:9,outputMin:-7,outputMax:7};
+const supply={negativeRail:-9,positiveRail:9,outputMin:-9,outputMax:9};
 function make(id,title,{type,rs,rf,load=false,series=false,va,vb}){
   const components=[],wires=[],junctionNames={};
   function part(id,type,value,x,y,rot=0,extra={}){

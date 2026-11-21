@@ -10,16 +10,20 @@ const circuit=id=>lab3Circuits.find(entry=>entry.id==='lab3-'+id).data;
 const near=(actual,expected,tolerance=0.0003)=>assert.ok(Math.abs(actual-expected)<tolerance,`${actual} vs ${expected}`);
 
 test('Lab 3 presets reproduce every DC output and identify clipping',()=>{
+ for(const preset of lab3Circuits)for(const amp of preset.data.components.filter(c=>c.type==='opamp')){
+  assert.equal(amp.supply.outputMin,-9,preset.id);
+  assert.equal(amp.supply.outputMax,9,preset.id);
+ }
  const expected={
-  'inv-1':-1.5,'inv-2':-1.5*8.2/4.7,'inv-3':-4.7,'inv-4':-7,
-  'non-1':3,'non-2':1.5*(1+8.2/4.7),'non-3':6.2,'non-4':7,
+  'inv-1':-1.5,'inv-2':-1.5*8.2/4.7,'inv-3':-4.7,'inv-4':-8.2,
+  'non-1':3,'non-2':1.5*(1+8.2/4.7),'non-3':6.2,'non-4':9,
   output:-1.5,input:-1.5*4.7/5.7,
   'sum-1':-2.85,'sum-2':5.85,'sum-3':-0.375,'sum-4':-3.975,'sum-5':0.6
  };
  for(const [id,output] of Object.entries(expected)){
   const result=dcReading(circuit(id));
   near(result.output,output);
-  assert.equal(result.saturation,id==='inv-4'?'low':id==='non-4'?'high':'linear');
+  assert.equal(result.saturation,id==='non-4'?'high':'linear');
  }
 });
 
@@ -32,7 +36,7 @@ test('Lab 3 calculators use port readings, signed limits, and meter uncertainty'
  assert.deepEqual(summingDesign(10000,0.25,0.4),{ra:40000,rb:25000});
  const sum=structuredClone(circuit('sum-1'));
  sum.components.find(c=>c.id==='U1').supply.outputMin=-6;
- assert.deepEqual(summingRange(sum),{slope:-0.625,lower:-17.5,upper:15});
+ assert.deepEqual(summingRange(sum),{slope:-0.625,lower:-22.5,upper:15});
 });
 
 test('summing layouts reuse the input rail battery and keep both supply returns on ground',()=>{

@@ -59,12 +59,12 @@ test('Norton transformation has the correct polarity for both current directions
 test('series source transformation respects outer-terminal direction and shared-node degree',()=>{const c=get('hw4-p3'),r=sourceTransformation(c,'V10');near(r.value,0.25);near(r.resistance,40);});
 
 test('worked op-amp equations match DC simulation in the linear region and at saturation',()=>{
- for(const id of ['lab3-inv-1','lab3-inv-4']){
+ for(const id of ['lab3-inv-1','lab3-non-4']){
   const data=lab3Circuits.find(c=>c.id===id).data, solved=solve(data);
   for(const [kind,quantity] of [['voltage','v'],['current','i'],['power','p']]){
    const work=homework(data,{kind,component:'U1'},n);
    near(work.numeric,solved.results.U1[quantity].re);
-   assert.ok(work.laws.find(l=>l.id==='U1').law.includes(id.endsWith('4')?'saturated low':'input currents = 0'));
+   assert.ok(work.laws.find(l=>l.id==='U1').law.includes(id.endsWith('4')?'saturated high':'input currents = 0'));
   }
   assert.ok(loopAnalysis(data).loops.every(l=>Math.abs(l.residual)<1e-9));
  }

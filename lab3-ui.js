@@ -44,7 +44,7 @@ export function initLab3({loadTemplate,getCircuit,applyDesign,fmt}){
  <label for="l3-procedure">Procedure</label>
  <select id="l3-procedure"><option value="1">1 · Inverting amplifier</option><option value="2">2 · Non-inverting amplifier</option><option value="3">3 · Summing amplifier</option></select>
  <button class="button" id="l3-download">Download current gain or summing table (CSV)</button>
- <p>Preset simulations use ±9 V supplies and ±7 V output limits. Use the measured fields for your physical readings. They save on this device.</p>
+ <p>Preset simulations use ±9 V supplies and ideal ±9 V output limits. Use the measured fields for your physical readings. They save on this device.</p>
  <section data-l3-procedure="1">
  <h3>1a · Inverting gain</h3><p>Figure P1-1 uses a 1.5 V input source and a 1 MΩ resistor from pin 3 to ground. The breadboard shows both 9 V supplies connected to pins 4 and 7 with a common ground.</p><p>Negative feedback holds pin 2 near ground while the output is linear. The current through Rs also flows through Rf, so the gain is −Rf/Rs.</p>
  ${gainTable('inv')}
@@ -65,7 +65,7 @@ export function initLab3({loadTemplate,getCircuit,applyDesign,fmt}){
  </section>
  <section data-l3-procedure="2" hidden>
  <h3>2 · Non-inverting gain</h3>
- <p>Rf and Rs divide the output until pin 2 matches the source at pin 3. The gain is 1 + Rf/Rs in the linear region. Row 4 asks for 9.7 V, which exceeds the supply, so the modeled output clips at 7 V.</p>
+ <p>Rf and Rs divide the output until pin 2 matches the source at pin 3. The gain is 1 + Rf/Rs in the linear region. Row 4 asks for 9.7 V, which exceeds the supply, so the modeled output clips at 9 V.</p>
  ${gainTable('non')}
  </section>
  <section data-l3-procedure="3" hidden>
