@@ -13,34 +13,40 @@ function make(id,title,{type,rs,rf,load=false,series=false,va,vb}){
   }
   const wire=(...route)=>wires.push({points:route.map(([x,y])=>({x,y}))});
   const name=(point,label)=>junctionNames[point.join(',')]=label;
-  const [out,minus,plus]=part('U1','opamp',200000,624,264,0,{supply});
+  const ampY=type==='sum'?240:264;
+  const [out,minus,plus]=part('U1','opamp',200000,624,ampY,0,{supply});
   const [f1,f2]=part('Rf','resistor',rf,624,72);
   const [gnd]=part('GND','ground',0,96,504);
-  const m=[504,240], o=[744,264], ground=[480,504];
+  const m=[504,minus[1]], o=[744,ampY], ground=[480,504];
   wire(minus,m,[504,72],f1);
   wire(f2,[744,72],o,out);
-  wire(o,[816,264]);
+  wire(o,[816,ampY]);
   name(o,'Vo');
   name(m,'Vminus');
   wire(gnd,ground);
   if(type==='sum'){
-    wire(plus,[528,288],[528,504],ground);
-    const [a1,a2]=part('Ra','resistor',40000,336,144);
-    const [b1,b2]=part('Rb','resistor',25000,360,336);
-    wire(a2,[504,144]);
-    wire(b2,[504,336],m);
+    wire(plus,[552,plus[1]],[552,504],ground);
+    const [a1,a2]=part('Ra','resistor',40000,360,120);
+    const [b1,b2]=part('Rb','resistor',25000,360,264);
+    const branch=(p)=>[m[0],p[1]];
+    wire(a2,branch(a2));
+    wire(b2,branch(b2),m);
     function input(id,value,x,destination){
       const lead=[x,destination[1]], bottom=[x,504];
       if(value===0){wire(bottom,lead,destination);return;}
-      const negative=value<0;
-      const [a,b]=part(id,'voltage',Math.abs(value),x,destination[1]+60,negative?270:90,Math.abs(value)===9?{opampRail:{component:'U1',pin:negative?4:7}}:{});
+      const negative=value<0, rail=Math.abs(value)===9;
+      const [a,b]=part(id,'voltage',Math.abs(value),x,384,negative?270:90,
+        rail?{opampRail:{component:'U1',pin:negative?4:7}}:{});
       wire(negative?b:a,lead,destination);
       wire(negative?a:b,bottom);
-      name(lead,id);
     }
-    input('Va',va,144,a1);
-    if(va===vb&&va!==0)wire([204,144],[204,336],b1);
-    else input('Vb',vb,240,b1);
+    input('Va',va,96,a1);
+    if(va===vb&&va!==0){
+      wire([240,a1[1]],[240,b1[1]],b1);
+      name([240,a1[1]],'Va = Vb');
+    }else{
+      input('Vb',vb,240,b1);
+    }
   }else{
     const [p,n]=part('Vs','voltage',1.5,96,360,90);
     wire(n,gnd);

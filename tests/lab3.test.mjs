@@ -4,6 +4,7 @@ import {lab3Circuits} from '../lab3-circuits.js';
 import {dcReading,inputResistance,outputResistance,summingDesign,summingRange} from '../lab3-analysis.js';
 import {breadboardPlan,opampBatteryConnections} from '../breadboard-model.js';
 import {buildGuide} from '../breadboard-build.js';
+import {pins} from '../solver.js';
 
 const circuit=id=>lab3Circuits.find(entry=>entry.id==='lab3-'+id).data;
 const near=(actual,expected,tolerance=0.0003)=>assert.ok(Math.abs(actual-expected)<tolerance,`${actual} vs ${expected}`);
@@ -42,5 +43,17 @@ test('summing layouts reuse the input rail battery and keep both supply returns 
   const guide=buildGuide(data,plan,(value,unit)=>value+' '+unit);
   assert.equal(guide.parts.get('DC battery or supply · 9 V').length,2);
   assert.equal(guide.wires.get('Flexible supply jumper').length,1);
+ }
+});
+
+test('Procedure 3 places both input paths and every connection on the editor grid',()=>{
+ for(const entry of lab3Circuits.filter(t=>t.id.startsWith('lab3-sum-'))){
+  const {components,wires}=entry.data;
+  const points=[...components,...components.flatMap(pins),...wires.flatMap(w=>w.points)];
+  assert.ok(points.every(({x,y})=>x%24===0&&y%24===0),entry.id);
+  assert.ok(wires.every(w=>w.points.every((p,i)=>i===0||p.x===w.points[i-1].x||p.y===w.points[i-1].y)),entry.id);
+  const [a,b]=['Ra','Rb'].map(id=>components.find(c=>c.id===id));
+  assert.equal(a.x,b.x);
+  assert.ok(a.y<b.y);
  }
 });

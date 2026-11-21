@@ -1,4 +1,4 @@
-export const routes = ['workspace', 'homework', 'library', 'learn'];
+export const routes = ['workspace', 'homework', 'library', 'learn', 'lab2', 'lab3'];
 export function resolveRoute(hash) {
   const route = String(hash || '').replace(/^#/, '');
   return routes.includes(route) ? route : 'workspace';
@@ -21,7 +21,7 @@ export function applyRoute(document, route) {
   for (const button of document.querySelectorAll('[data-page]')) {
     const active = button.dataset.page === route;
     button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
+    button.setAttribute('aria-current', active ? 'page' : 'false');
   }
   return route;
 }

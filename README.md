@@ -105,7 +105,7 @@ See [HOMEWORK-COVERAGE.md](HOMEWORK-COVERAGE.md) for the problem-by-problem mapp
 
 ## EE 215 Lab 2
 
-Open **EE 215 · Lab 2 tools** above the workspace or filter the circuit library by **EE 215 Lab 2**. Four editable presets cover Figures P1-1, P2-1 (AA and potato models), and P3-1. All work in schematic and breadboard views.
+Open **Lab 2** in the top navigation or filter the circuit library by **EE 215 Lab 2**. Four editable presets cover Figures P1-1, P2-1 (AA and potato models), and P3-1. All work in schematic and breadboard views.
 
 - Procedure 1: node voltage solution, mesh / loop equations, and comparison of measured load voltage and downward current with the ideal model.
 - Procedure 2: enter actual open-circuit voltage, short-circuit current in mA, and measured series resistance for both batteries. The tool draws equivalents with and without the series resistor and compares delivery to the same load. Battery preset values are illustrative, not experimental readings. Keep the series resistor in place for short-circuit measurements.

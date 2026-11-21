@@ -28,7 +28,7 @@ function plot({slope,lower,upper}){
 }
 
 export function initLab3({loadTemplate,getCircuit,applyDesign,fmt}){
- const panel=document.createElement('details');
+ const panel=document.createElement('div');
  panel.id='lab3-tools';
  panel.className='panel lab-tools lab3-tools';
  const gainRows=(kind)=>resistorPairs.map(([rs,rf],i)=>{
@@ -39,7 +39,7 @@ export function initLab3({loadTemplate,getCircuit,applyDesign,fmt}){
  }).join('');
  const gainTable=kind=>`<div class="lab-table-wrap"><table>${header(['Row','Rs (kΩ)','Rf (kΩ)','Ideal gain','Sim. Vo (V)','Sim. gain','Sim. error (%)','Measured Vs (V)','Measured Vo (V)','Measured gain','Error (%)','Circuit'])}<tbody>${gainRows(kind)}</tbody></table></div>`;
  const base=simulate('lab3-inv-1'),out=simulate('lab3-output'),series=simulate('lab3-input');
- panel.innerHTML=`<summary>EE 215 · Lab 3 tools <span class="small muted">Amplifier gain, resistance and summing range</span></summary>
+ panel.innerHTML=`<header class="lab-page-heading"><h1>EE 215 · Lab 3</h1><p>Amplifier gain, resistance and summing range</p></header>
  <div class="lab-tools-body">
  <label for="l3-procedure">Procedure</label>
  <select id="l3-procedure"><option value="1">1 · Inverting amplifier</option><option value="2">2 · Non-inverting amplifier</option><option value="3">3 · Summing amplifier</option></select>
@@ -91,7 +91,7 @@ export function initLab3({loadTemplate,getCircuit,applyDesign,fmt}){
  <button class="button" id="l3-plot-download">Download plot (SVG)</button>
  <p id="l3-plot-message" aria-live="polite"></p><div id="l3-plot"></div>
  </section></div>`;
- document.querySelector('.lab-layout').before(panel);
+ document.querySelector('#lab3').append(panel);
  const $=id=>panel.querySelector('#l3-'+id);
  const inputs=[...panel.querySelectorAll('input')];
  const savedKey='circuit-builder-lab3-readings';
