@@ -5,6 +5,8 @@ import {auditBreadboard,boardGraph,breadboardPlan,opampBatteryConnections} from 
 import {jumperConnectionProblems,wireIntersections} from '../breadboard-connections.js';
 import {measureBreadboard} from '../breadboard-meter.js';
 import {decodeCircuit} from '../circuit-file.js';
+import {pins} from "../solver.js";
+import {p1Details} from "../schematic-figure.js";
 import {setLabWireMode} from '../lab-wires.js';
 
 const {circuit}=decodeCircuit(readFileSync(new URL('../examples/p1-inverting-amplifier.json',import.meta.url),'utf8'));
@@ -38,4 +40,14 @@ for(const lab of [false,true])test(`P1-1 breadboard connectivity and meter readi
  assert.equal(current(feedback.to,feedback.from),-measured);
  assert.throws(()=>current(feedback.from,ground),/each side/);
  assert.ok(auditBreadboard(plan),'series measurement preserves the original wiring');
+});
+
+test('P1-1 schematic pins and wire vertices align to the 24-unit grid',()=>{
+ const onGrid=({x,y})=>x%24===0&&y%24===0;
+ const points=[...circuit.components,...circuit.components.flatMap(pins),...circuit.wires.flatMap(w=>w.points)];
+ assert.ok(points.every(onGrid));
+ const details=p1Details(circuit,(value,unit)=>value+' '+unit,String);
+ assert.match(details,/lab-figure-terminal" cx="504" cy="192"/);
+ assert.match(details,/lab-figure-terminal" cx="504" cy="312"/);
+ assert.equal((details.match(/9 V/g)||[]).length,2);
 });

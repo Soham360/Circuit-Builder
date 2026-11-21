@@ -1,7 +1,7 @@
 // Presentation of the editable P1-1 schematic. The two supply drawings show
 // the amplifier's configured rails; the solver and breadboard use those same values.
 import {opampSupply} from './devices.js';
-import {key, pins, topology} from './solver.js';
+import {pins, topology} from './solver.js';
 
 const text = (x,y,label,attrs='') => `<text x="${x}" y="${y}" ${attrs}>${label}</text>`;
 const sub = (name,suffix) => `${name}<tspan baseline-shift="sub" font-size="75%">${suffix}</tspan>`;
@@ -35,26 +35,29 @@ export function p1Component(c, fmt, esc) {
 export function p1Details(circuit, fmt, esc) {
  const amp=circuit.components.find(c=>c.id==='U1'&&c.type==='opamp'&&c.rot===0&&!c.length);
  const ground=circuit.components.find(c=>c.id==='GND'&&c.type==='ground');
- const points=new Set(circuit.wires.flatMap(w=>w.points.map(key)));
  if(!amp||!ground)return '';
  const {x,y}=amp;
- const end={x:480,y:312},output={x:480,y:198};
- if(!points.has(key(end))||!points.has(key(output)))return '';
- const top=topology(circuit);
- if(top.node(end)!==-1||top.node(output)!==top.node(pins(amp)[0]))return '';
- const supplyDrawing=ground.y-y===114&&ground.x<x&&x+60<end.x&&
+ const top=topology(circuit), outNode=top.node(pins(amp)[0]);
+ const points=circuit.wires.flatMap(w=>w.points);
+ const rightmost=(atY,node)=>points.filter(p=>p.y===atY&&p.x>x+96&&top.node(p)===node)
+  .reduce((right,p)=>!right||p.x>right.x?p:right,null);
+ const end=rightmost(ground.y,-1), output=rightmost(y,outNode);
+ if(!end||!output||end.x!==output.x)return '';
+ const railX=x+72;
+ const supplyDrawing=ground.y-y>=114&&ground.x<x&&railX<end.x&&
   circuit.wires.some(w=>w.points.some((p,i)=>i>0&&p.y===end.y&&w.points[i-1].y===end.y&&
-   Math.min(p.x,w.points[i-1].x)<=x&&Math.max(p.x,w.points[i-1].x)>=x+60));
+   Math.min(p.x,w.points[i-1].x)<=x&&Math.max(p.x,w.points[i-1].x)>=railX));
  let details='';
  if(supplyDrawing){
   const {negativeRail,positiveRail}=opampSupply(amp), g=ground.y;
-  details+=symbol(`<path d="M${x} ${y+20}V${g-60}M${x+60} ${g-60}V${y-60}H${x}V${y-20}"/>${battery(x,g-30,false)}${battery(x+60,g-30,true)}`)+
-    labels(text(x+5,y-24,'7')+text(x+9,y+26,'4')+text(x-32,g-47,'−')+text(x-32,g-12,'+')+text(x+84,g-47,'+')+text(x+84,g-12,'−')+
-    text(x-27,g-27,esc(fmt(Math.abs(negativeRail),'V')),'text-anchor="end"')+text(x+79,g-27,esc(fmt(positiveRail,'V'))));
-  details+=`<circle class="lab-figure-dot" cx="${x}" cy="${g}" r="4"/><circle class="lab-figure-dot" cx="${x+60}" cy="${g}" r="4"/>`;
+  details+=symbol(`<path d="M${x} ${y+20}V${g-60}M${railX} ${g-60}V${y-60}H${x}V${y-20}"/>${battery(x,g-30,false)}${battery(railX,g-30,true)}`)+
+    labels(text(x+5,y-24,'7')+text(x+9,y+26,'4')+text(x-32,g-47,'−')+text(x-32,g-12,'+')+text(railX+24,g-47,'+')+text(railX+24,g-12,'−')+
+    text(x-27,g-27,esc(fmt(Math.abs(negativeRail),'V')),'text-anchor="end"')+text(railX+19,g-27,esc(fmt(positiveRail,'V'))));
+  details+=`<circle class="lab-figure-dot" cx="${x}" cy="${g}" r="4"/><circle class="lab-figure-dot" cx="${railX}" cy="${g}" r="4"/>`;
  }
- details+=`<circle class="lab-figure-terminal" cx="480" cy="198" r="5"/><circle class="lab-figure-terminal" cx="480" cy="312" r="5"/>`+
-   labels(text(501,203,'+')+text(501,316,'−')+text(500,254,sub('v','o'))+
-   text(288,344,'Figure P1-1 – Inverting amplifier','class="lab-figure-caption" text-anchor="middle"'));
+ details+=[output,end].map(p=>`<circle class="lab-figure-terminal" cx="${p.x}" cy="${p.y}" r="5"/>`).join('')+
+   labels(text(end.x+21,output.y+5,'+')+text(end.x+21,end.y+4,'−')+
+   text(end.x+20,(output.y+end.y)/2,sub('v','o'))+
+   text((ground.x+end.x)/2,end.y+32,'Figure P1-1 – Inverting amplifier','class="lab-figure-caption" text-anchor="middle"'));
  return details;
 }
