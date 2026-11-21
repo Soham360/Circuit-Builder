@@ -178,3 +178,21 @@ body[data-view=breadboard] .right-column{width:var(--inspector-width,250px)}
 .lab3-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:.65rem}
 .lab3-tools output{display:block;margin-top:.65rem}
 .lab3-plot{display:block;width:min(100%,38rem);height:auto;margin-top:.75rem}
+
+.board-meter:not([hidden]){display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid #e1e5dc}
+.board-meter label{display:flex;align-items:center;gap:6px}
+.board-meter label[hidden]{display:none}
+.board-meter output{font-weight:650;color:#263f34}
+.board-meter small{flex-basis:100%;color:#465950}
+.board-meter-probe{cursor:grab;touch-action:none}
+.board-meter-probe:active{cursor:grabbing}
+.lab-figure-canvas{background:#fff}
+.lab-figure-canvas>rect[fill="url(#grid)"]{opacity:0}
+.lab-figure .circuit-wire,.lab-figure .circuit-symbol,.lab-figure-symbol{color:#171917;stroke:#171917;stroke-width:2.5}
+.lab-figure .circuit-symbol,.lab-figure-symbol{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.lab-figure-label{fill:#171917;stroke:none;font:italic 16px Georgia,serif}
+.lab-figure-dot,.lab-figure .node-dot{fill:#171917}
+.lab-figure-terminal{fill:white;stroke:#171917;stroke-width:2.5}
+.lab-figure-symbol,.lab-figure-label,.lab-figure-terminal,.lab-figure-dot{pointer-events:none}
+.lab-figure-caption{font-style:normal}
+#canvas:not([data-tool="wire"]) .lab-figure .component:not(.selected) .terminal{opacity:0}
