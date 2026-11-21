@@ -4,7 +4,7 @@ import {lab3Circuits} from '../lab3-circuits.js';
 import {dcReading,inputResistance,outputResistance,summingDesign,summingRange} from '../lab3-analysis.js';
 import {breadboardPlan,opampBatteryConnections} from '../breadboard-model.js';
 import {buildGuide} from '../breadboard-build.js';
-import {pins} from '../solver.js';
+import {pins,topology} from '../solver.js';
 
 const circuit=id=>lab3Circuits.find(entry=>entry.id==='lab3-'+id).data;
 const near=(actual,expected,tolerance=0.0003)=>assert.ok(Math.abs(actual-expected)<tolerance,`${actual} vs ${expected}`);
@@ -55,5 +55,18 @@ test('Procedure 3 places both input paths and every connection on the editor gri
   const [a,b]=['Ra','Rb'].map(id=>components.find(c=>c.id===id));
   assert.equal(a.x,b.x);
   assert.ok(a.y<b.y);
+ }
+});
+
+test('every Procedure 1 preset wires the 1 MΩ resistor from pin 3 to common ground',()=>{
+ for(const id of ['inv-1','inv-2','inv-3','inv-4','output','input']){
+  const data=circuit(id),top=topology(data);
+  const part=id=>data.components.find(c=>c.id===id);
+  const bias=part('Rb'),amp=part('U1');
+  assert.equal(bias.value,1e6);
+  assert.equal(top.node(pins(bias)[0]),-1);
+  assert.equal(top.node(pins(bias)[1]),top.node(pins(amp)[2]));
+  assert.notEqual(top.node(pins(amp)[2]),-1);
+  assert.deepEqual(opampBatteryConnections(breadboardPlan(data)).map(lead=>[lead.pin,lead.voltage,Boolean(lead.groundHole)]),[[4,-9,true],[7,9,true]]);
  }
 });

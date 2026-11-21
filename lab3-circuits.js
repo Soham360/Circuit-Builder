@@ -56,7 +56,9 @@ function make(id,title,{type,rs,rf,load=false,series=false,va,vb}){
     const [r1,r2]=part('Rs','resistor',rs,408,240);
     if(type==='inv'){
       wire(r2,m);
-      wire(plus,[552,288],[552,504],ground);
+      const [biasGround,biasInput]=part('Rb','resistor',1000000,408,plus[1]);
+      wire(biasGround,[288,plus[1]],[288,504]);
+      wire(biasInput,plus);
       if(series){
         const [s1,s2]=part('Rseries','resistor',1000,216,240);
         wire(source,s1);
@@ -75,7 +77,7 @@ function make(id,title,{type,rs,rf,load=false,series=false,va,vb}){
     if(load){
       const [l1,l2]=part('RL','resistor',1000,816,384,90);
       wire([816,264],l1);
-      wire(l2,[816,504],[552,504]);
+      wire(l2,[816,504],ground);
     }
   }
   return {

@@ -46,7 +46,7 @@ export function initLab3({loadTemplate,getCircuit,applyDesign,fmt}){
  <button class="button" id="l3-download">Download current gain or summing table (CSV)</button>
  <p>Preset simulations use ±9 V supplies and ±7 V output limits. Use the measured fields for your physical readings. They save on this device.</p>
  <section data-l3-procedure="1">
- <h3>1a · Inverting gain</h3><p>Negative feedback holds pin 2 near ground while the output is linear. The current through Rs also flows through Rf, so the gain is −Rf/Rs.</p>
+ <h3>1a · Inverting gain</h3><p>Figure P1-1 uses a 1.5 V input source and a 1 MΩ resistor from pin 3 to ground. The breadboard shows both 9 V supplies connected to pins 4 and 7 with a common ground.</p><p>Negative feedback holds pin 2 near ground while the output is linear. The current through Rs also flows through Rf, so the gain is −Rf/Rs.</p>
  ${gainTable('inv')}
  <fieldset><legend>1b · Output Thévenin resistance</legend>
  <p>${open('inv-1','Open circuit with no load')} ${open('output','Open circuit with 1 kΩ load')}</p>
