@@ -6,7 +6,6 @@ import {jumperConnectionProblems,wireIntersections} from '../breadboard-connecti
 import {measureBreadboard} from '../breadboard-meter.js';
 import {decodeCircuit} from '../circuit-file.js';
 import {pins} from "../solver.js";
-import {p1Details} from "../schematic-figure.js";
 import {setLabWireMode} from '../lab-wires.js';
 
 const {circuit}=decodeCircuit(readFileSync(new URL('../examples/p1-inverting-amplifier.json',import.meta.url),'utf8'));
@@ -46,8 +45,4 @@ test('P1-1 schematic pins and wire vertices align to the 24-unit grid',()=>{
  const onGrid=({x,y})=>x%24===0&&y%24===0;
  const points=[...circuit.components,...circuit.components.flatMap(pins),...circuit.wires.flatMap(w=>w.points)];
  assert.ok(points.every(onGrid));
- const details=p1Details(circuit,(value,unit)=>value+' '+unit,String);
- assert.match(details,/lab-figure-terminal" cx="504" cy="192"/);
- assert.match(details,/lab-figure-terminal" cx="504" cy="312"/);
- assert.equal((details.match(/9 V/g)||[]).length,2);
 });

@@ -1,9 +1,8 @@
 {
   "version": 1,
-  "title": "Figure P1-1 \u00b7 Inverting amplifier",
+  "title": "Figure P1-1 · Inverting amplifier",
   "mode": "dc",
   "circuit": {
-    "figure": "p1-inverting",
     "components": [
       {
         "id": "Vs",
