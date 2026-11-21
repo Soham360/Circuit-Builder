@@ -1,11 +1,11 @@
+import {opampSupply} from './devices.js';
 import {portEquivalent,loopAnalysis,sourceTransformation,waveformPower,powerBalance} from './network-analysis.js';
 import {equivalentResistance} from './equivalent.js';
-import {pins,topology,solve,terminal,dependentTypes,voltageControlled,currentControlled} from './solver.js';
+import {pinLabel,pins,topology,solve,terminal,dependentTypes,voltageControlled,currentControlled} from './solver.js';
 
 // Deterministic DC modified nodal analysis. Algebra is supplied by the vendored
 // Nerdamer engine; no network requests, prompts, or language model are involved.
 export function homework(circuit,query,n){
- if(circuit.components.some(c=>c.type==='opamp'))throw Error('Use Run in Workspace to simulate op amps.');
  if(circuit.components.some(c=>['led','diode','potentiometer','button'].includes(c.type)))throw Error('Use Run in Workspace for LEDs, diodes, potentiometers and pushbuttons. Symbolic Homework currently supports the original linear components.');
  if(!n)throw Error('The local algebra engine did not load. Reload the page.');
  if(query.kind==='port')return {kind:'port',...portEquivalent(circuit,query)};
@@ -13,7 +13,10 @@ export function homework(circuit,query,n){
  if(query.kind==='transform')return {kind:'transform',...sourceTransformation(circuit,query.component)};
  if(query.kind==='waveform')return {kind:'waveform',...waveformPower(query.voltage,query.current,query.options)};
  if(query.kind==='balance')return {kind:'balance',...powerBalance(query.rows)};
- if(query.kind==='equivalent')return equivalentResistance(circuit,query,n);
+ if(query.kind==='equivalent'){
+  if(circuit.components.some(c=>c.type==='opamp'))throw Error('Choose Thévenin / Norton to include the active op-amp in the equivalent.');
+  return equivalentResistance(circuit,query,n);
+ }
  if(query.kind==='constraints'){
   const givens=query.measurements,unknown=circuit.components.filter(c=>c.unknown);
   if(!Array.isArray(givens)||!givens.length||givens.length>8||!unknown.length)throw Error('Supply 1–8 measurements and mark the component values to determine as unknown.');
@@ -84,15 +87,28 @@ export function homework(circuit,query,n){
  const mul=(a,b)=>{if(a==='0'||b==='0')return '0';if(a==='1')return b;if(b==='1')return a;const [p,q]=fraction(a),[r,s]=fraction(b);return make('('+p+')*('+r+')','('+q+')*('+s+')');};
  const div=(a,b)=>{if(a==='0')return '0';if(b==='1')return a;const [p,q]=fraction(a),[r,s]=fraction(b);return make('('+p+')*('+s+')','('+q+')*('+r+')');};
 
- const branches=parts.filter(c=>['voltage','current','inductor',...dependentTypes].includes(c.type));
+ const opampResults=parts.some(c=>c.type==='opamp')&&!unknowns.length?solve(circuit).results:null;
+ const branches=parts.filter(c=>['voltage','current','inductor','opamp',...dependentTypes].includes(c.type));
  const vars=Array.from({length:top.count},(_,i)=>'N'+(i+1)).concat(branches.map((c,i)=>'J'+(i+1))),size=vars.length;
  if(!size)throw Error('Build a circuit with a source and at least one non-ground node.');
  const A=Array.from({length:size},()=>Array(size).fill('0')),b=Array(size).fill('0'),laws=[],nodeTerms=Array.from({length:top.count},()=>[]);
  const nodeName=i=>i<0?'0':vars[i];const value=c=>c.unknown?symbols[c.id]:String(c.value);
  const stamp=(r,c,x)=>{if(r>=0&&c>=0)A[r][c]=add(A[r][c],x);};const rhs=(r,x)=>{if(r>=0)b[r]=add(b[r],x);};
  const terms=(a,d,i)=>{if(a>=0)nodeTerms[a].push(i);if(d>=0)nodeTerms[d].push(`-(${i})`);};
- for(const c of parts){const [a,d]=pins(c).map(top.node),va=nodeName(a),vb=nodeName(d),v=value(c),drop=`(${va}-${vb})`;
- if(c.type==='resistor'||c.type==='switch'){const r=c.type==='switch'?(c.closed?'0.000001':'1000000000000'):v,g=div('1',r);stamp(a,a,g);stamp(d,d,g);stamp(a,d,neg(g));stamp(d,a,neg(g));terms(a,d,`${drop}/(${r})`);laws.push({id:c.id,law:`I(${c.id}) = ${drop} / (${r})`});}
+ for(const c of parts){const [a,minus,plus]=pins(c).map(top.node),d=c.type==='opamp'?-1:minus,va=nodeName(a),vb=nodeName(d),v=value(c),drop=`(${va}-${vb})`;
+ if(c.type==='opamp'){
+  const j=top.count+branches.indexOf(c),J=vars[j],state=opampResults?.[c.id]?.saturation;
+  stamp(a,j,'1');stamp(j,a,'1');terms(a,-1,J);
+  if(state==='low'||state==='high'){
+   const supply=opampSupply(c),limit=state==='low'?supply.outputMin:supply.outputMax;
+   rhs(j,String(limit));
+   laws.push({id:c.id,law:`${va} = ${limit} (saturated ${state}); input currents = 0; ${J} = output current into ${c.id}`});
+  }else{
+   stamp(j,minus,v);stamp(j,plus,neg(v));
+   laws.push({id:c.id,law:`${va} = (${v})*(${nodeName(plus)} - ${nodeName(minus)}); input currents = 0; ${J} = output current into ${c.id}${opampResults?'':' (assume linear operation)'}`});
+  }
+ }
+ else if(c.type==='resistor'||c.type==='switch'){const r=c.type==='switch'?(c.closed?'0.000001':'1000000000000'):v,g=div('1',r);stamp(a,a,g);stamp(d,d,g);stamp(a,d,neg(g));stamp(d,a,neg(g));terms(a,d,`${drop}/(${r})`);laws.push({id:c.id,law:`I(${c.id}) = ${drop} / (${r})`});}
  else if(c.type==='capacitor')laws.push({id:c.id,law:`I(${c.id}) = 0 (open circuit at DC)`});
  else{const index=branches.indexOf(c),j=top.count+index,J=vars[j],isCurrent=['current','vccs','cccs'].includes(c.type);stamp(a,j,'1');stamp(d,j,'-1');if(isCurrent)stamp(j,j,'1');else{stamp(j,a,'1');stamp(j,d,'-1');}terms(a,d,J);
  if(voltageControlled(c)){const cp=top.node(terminal(circuit,c.controlPositive)),cn=top.node(terminal(circuit,c.controlNegative));stamp(j,cp,neg(v));stamp(j,cn,v);laws.push({id:c.id,law:`${isCurrent?J:va+' - '+vb} = (${v})*(${nodeName(cp)}-${nodeName(cn)}); ${J} = I(${c.id})`});}
@@ -108,7 +124,7 @@ export function homework(circuit,query,n){
  for(let r=col+1;r<size;r++){if(A[r][col]==='0')continue;const f=div(A[r][col],A[col][col]);for(let j=col+1;j<size;j++)A[r][j]=simple(add(A[r][j],neg(mul(f,A[col][j]))));b[r]=simple(add(b[r],neg(mul(f,b[col]))));A[r][col]='0';}}
  const x=Array(size).fill('0');for(let r=size-1;r>=0;r--){let v=b[r];for(let j=r+1;j<size;j++)v=add(v,neg(mul(A[r][j],x[j])));x[r]=simple(div(v,A[r][r]));}
  const nodeExpression=id=>{if(id==='0'||id===-1)return '0';const i=Number(String(id).replace('N',''))-1;if(!Number.isInteger(i)||i<0||i>=top.count)throw Error('Choose a node from the circuit.');return x[i];};
- const componentExpression=(id,kind)=>{const c=parts.find(c=>c.id===id);if(!c)throw Error('Choose a component from the circuit.');const [a,d]=pins(c).map(top.node),v=simple(add(a<0?'0':x[a],neg(d<0?'0':x[d])));if(kind==='voltage')return v;if(kind==='unknown')return value(c);if(c.type==='resistor')return simple(div(v,value(c)));if(c.type==='capacitor')return '0';if(c.type==='switch')return simple(div(v,c.closed?'0.000001':'1000000000000'));return x[top.count+branches.indexOf(c)];};
+ const componentExpression=(id,kind)=>{const c=parts.find(c=>c.id===id);if(!c)throw Error('Choose a component from the circuit.');const [a,d]=pins(c).map(top.node),v=simple(add(a<0?'0':x[a],neg(c.type==='opamp'||d<0?'0':x[d])));if(kind==='voltage')return v;if(kind==='unknown')return value(c);if(c.type==='resistor')return simple(div(v,value(c)));if(c.type==='capacitor')return '0';if(c.type==='switch')return simple(div(v,c.closed?'0.000001':'1000000000000'));return x[top.count+branches.indexOf(c)];};
  const expressionFor=q=>q.kind==='node'?nodeExpression(q.nodeA):q.kind==='difference'?simple(add(nodeExpression(q.nodeA),neg(nodeExpression(q.nodeB)))):q.kind==='power'?mul(componentExpression(q.component,'voltage'),componentExpression(q.component,'current')):componentExpression(q.component,q.kind);
  let expression=expressionFor(query),candidates=[],condition=null,conditional=false;
  const numeric=expr=>{try{if(n(expr).variables().length)return null;const v=Number(n(expr).evaluate().toDecimal(14));return Number.isFinite(v)?v:null;}catch{return null;}};
@@ -125,6 +141,6 @@ export function homework(circuit,query,n){
  if(!candidates.length)throw Error('No verified physical solution was found. The measurement may be inconsistent or require a non-positive resistance.');expression=candidates.map(c=>c.expression).join(' OR ');conditional=candidates.some(c=>c.numeric===null);
  }
  expression=query.kind==='unknown'?expression:present(expression);
- const nodes=Array.from({length:top.count},(_,i)=>({name:'N'+(i+1),expression:present(x[i]),numeric:numeric(x[i]),terminals:circuit.components.flatMap(c=>pins(c).map((p,j)=>top.node(p)===i?`${c.id}.${j?'B':'A'}`:null)).filter(Boolean)}));
- return {expression,numeric:query.kind==='unknown'?candidates.length===1?candidates[0].numeric:null:numeric(expression),candidates,conditional,condition,unknowns:unknowns.map(c=>({id:c.id,symbol:symbols[c.id],type:c.type})),knowns:parts.filter(c=>!c.unknown).map(c=>({id:c.id,type:c.type,value:c.value})),nodes,laws,kcl:nodeTerms.map((t,i)=>({node:'N'+(i+1),equation:(t.join(' + ')||'0')+' = 0'})),reductions,solutions:vars.map((v,i)=>({variable:v,expression:present(x[i]),numeric:numeric(x[i])})),target:query,substitution:query.kind==='node'?query.nodeA:query.kind==='difference'?`${query.nodeA} - ${query.nodeB}`:query.kind==='current'?`I(${query.component})`:query.kind==='power'?`P(${query.component})`:query.kind==='unknown'?symbols[query.component]:parts.find(c=>c.id===query.component)?pins(parts.find(c=>c.id===query.component)).map(top.node).map(nodeName).join(' - '):'',elapsed:Date.now()-begun};
+ const nodes=Array.from({length:top.count},(_,i)=>({name:'N'+(i+1),expression:present(x[i]),numeric:numeric(x[i]),terminals:circuit.components.flatMap(c=>pins(c).map((p,j)=>top.node(p)===i?`${c.id}.${pinLabel(c,j)||'GND'}`:null)).filter(Boolean)}));
+ return {expression,numeric:query.kind==='unknown'?candidates.length===1?candidates[0].numeric:null:numeric(expression),candidates,conditional,condition,unknowns:unknowns.map(c=>({id:c.id,symbol:symbols[c.id],type:c.type})),knowns:parts.filter(c=>!c.unknown).map(c=>({id:c.id,type:c.type,value:c.value})),nodes,laws,kcl:nodeTerms.map((t,i)=>({node:'N'+(i+1),equation:(t.join(' + ')||'0')+' = 0'})),reductions,solutions:vars.map((v,i)=>({variable:v,expression:present(x[i]),numeric:numeric(x[i])})),target:query,substitution:query.kind==='node'?query.nodeA:query.kind==='difference'?`${query.nodeA} - ${query.nodeB}`:query.kind==='current'?`I(${query.component})`:query.kind==='power'?`P(${query.component})`:query.kind==='unknown'?symbols[query.component]:parts.find(c=>c.id===query.component)?parts.find(c=>c.id===query.component).type==='opamp'?nodeName(top.node(pins(parts.find(c=>c.id===query.component))[0])):pins(parts.find(c=>c.id===query.component)).map(top.node).map(nodeName).join(' - '):'',elapsed:Date.now()-begun};
 }

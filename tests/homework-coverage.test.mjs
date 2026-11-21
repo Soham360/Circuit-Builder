@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {homeworkCircuits} from '../homework-circuits.js';
 import {homework} from '../homework.js';
+import {lab3Circuits} from '../lab3-circuits.js';
 import {solve,pins,nodeLabels,topology} from '../solver.js';
 import {portEquivalent,loopAnalysis,sourceTransformation,waveformPower,powerBalance} from '../network-analysis.js';
 const algebra=()=>{const ctx={};ctx.self=ctx;vm.runInNewContext(fs.readFileSync(new URL('../vendor/nerdamer.js',import.meta.url),'utf8'),ctx);return ctx.nerdamer;};let n;
@@ -56,3 +57,35 @@ test('zero open-circuit voltage still yields a finite test-source resistance',()
 test('arbitrary node port and reversed terminals preserve the resistance',()=>{const c=get('hw4-p1'),load=c.components.find(p=>p.id==='RLoad'),t=topology(c),[a,b]=pins(load).map(t.node).map(i=>i<0?'0':'N'+(i+1));c.components=c.components.filter(p=>p!==load);const r=portEquivalent(c,{nodeA:a,nodeB:b}),reverse=portEquivalent(c,{nodeA:b,nodeB:a});near(reverse.rth,r.rth);near(reverse.vth,-r.vth);near(reverse.isc,-r.isc);});
 test('Norton transformation has the correct polarity for both current directions',()=>{const c=get('hw4-p3'),r=sourceTransformation(c,'I4');near(r.value,-20);near(r.resistance,5);c.components.find(p=>p.id==='I4').value=-4;near(sourceTransformation(c,'I4').value,20);assert.throws(()=>sourceTransformation(c,'R4'),/source/);});
 test('series source transformation respects outer-terminal direction and shared-node degree',()=>{const c=get('hw4-p3'),r=sourceTransformation(c,'V10');near(r.value,0.25);near(r.resistance,40);});
+
+test('worked op-amp equations match DC simulation in the linear region and at saturation',()=>{
+ for(const id of ['lab3-inv-1','lab3-inv-4']){
+  const data=lab3Circuits.find(c=>c.id===id).data, solved=solve(data);
+  for(const [kind,quantity] of [['voltage','v'],['current','i'],['power','p']]){
+   const work=homework(data,{kind,component:'U1'},n);
+   near(work.numeric,solved.results.U1[quantity].re);
+   assert.ok(work.laws.find(l=>l.id==='U1').law.includes(id.endsWith('4')?'saturated low':'input currents = 0'));
+  }
+  assert.ok(loopAnalysis(data).loops.every(l=>Math.abs(l.residual)<1e-9));
+ }
+});
+
+test('linear op-amp port equivalents handle ideal output and finite series resistance',()=>{
+ const data=structuredClone(lab3Circuits.find(c=>c.id==='lab3-output').data);
+ const opamp=data.components.find(c=>c.id==='U1');
+ const id=p=>{const node=topology(data).node(p);return node<0?'0':'N'+(node+1);};
+ const ideal=portEquivalent(data,{nodeA:id(pins(opamp)[0]),nodeB:'0'});
+ near(ideal.vth,-1.5,1e-5);
+ near(ideal.rth,0);
+ assert.equal(ideal.isc,null);
+ const lead=data.wires.find(w=>w.points[0].x===816&&w.points[0].y===264&&w.points[1].y===336);
+ // Put a resistor between the amplifier output and the load terminal.
+ lead.points[1].y=288;
+ data.components.find(c=>c.id==='RL').y=456;
+ data.wires.find(w=>w.points[0].x===816&&w.points[0].y===432).points.shift();
+ data.components.push({id:'Rout',type:'resistor',value:100,x:816,y:336,rot:90});
+ data.wires.push({points:[{x:816,y:384},{x:816,y:408}]});
+ const finite=portEquivalent(data,{component:'RL'});
+ near(finite.rth,100);
+ near(finite.loadVoltage,solve(data).results.RL.v.re);
+});

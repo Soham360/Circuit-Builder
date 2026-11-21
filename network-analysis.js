@@ -9,26 +9,42 @@ export function portEquivalent(circuit,{component,nodeA,nodeB,loadResistance}={}
  if(!a||!b||original.node(a)===original.node(b))throw Error('The port must have two different electrical nodes.');
  const network=structuredClone(circuit);if(load)network.components=network.components.filter(c=>c.id!==load.id);
  if(network.components.some(c=>c.unknown))throw Error('Define component values before calculating a numerical port equivalent.');
- if(network.components.some(c=>!['resistor','voltage','current','ground',...dependentTypes].includes(c.type)))throw Error('Port equivalents support linear DC resistor/source networks.');
+ if(network.components.some(c=>!['resistor','voltage','current','ground','opamp',...dependentTypes].includes(c.type)))throw Error('Port equivalents support linear DC resistor/source networks.');
  // Preserve port points even when removing the load removes the only terminal there.
  network.wires.push({points:[{...a},{...a}]},{points:[{...b},{...b}]});
  let id='PortTest';while(network.components.some(c=>c.id===id))id+='X';
  const source=value=>({id,type:'voltage',value,x:(a.x+b.x)/2,y:(a.y+b.y)/2,length:Math.hypot(b.x-a.x,b.y-a.y),rot:Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI});
+ const opamps=network.components.filter(c=>c.type==='opamp');
  const open=solve(network),vth=open.voltage(a).re-open.voltage(b).re;
- const short=structuredClone(network);short.components.push(source(0));const isc=solve(short).results[id].i.re;
- const test=structuredClone(network);for(const c of test.components)if(['voltage','current'].includes(c.type))c.value=0;
- test.components.push(source(1));const itest=-solve(test).results[id].i.re;
- if(Math.abs(itest)<1e-14)throw Error('The port has infinite resistance; a finite Thévenin/Norton equivalent is unavailable.');
- const rth=1/itest,rl=loadResistance??load?.value;
- const result={vth,isc,rth,itest,port:[a,b],removedLoad:load?.id||null,dependent:network.components.filter(c=>dependentTypes.includes(c.type)).map(c=>c.id)};
+ if(opamps.some(c=>open.results[c.id].saturation!=='linear'))throw Error('The open-circuit op-amp is saturated. A linear Thévenin/Norton equivalent requires a linear operating point.');
+ if(!Number.isFinite(vth))throw Error('The selected port has an undefined open-circuit voltage.');
+ const test=structuredClone(network);
+ for(const c of test.components)if(['voltage','current'].includes(c.type))c.value=0;
+ test.components.push(source(1));
+ let itest,rth,currentTest=false;
+ try{
+  itest=-solve(test,{linearOpamps:true}).results[id].i.re;
+  rth=1/itest;
+ }catch{
+  // A 1 V test conflicts with an ideal zero-resistance output. Inject current instead.
+  currentTest=true;
+  Object.assign(test.components.at(-1),{type:'current',value:-1});
+  const testResult=solve(test,{linearOpamps:true});
+  rth=testResult.voltage(a).re-testResult.voltage(b).re;
+  itest=rth===0?null:1/rth;
+ }
+ if(!Number.isFinite(rth)||Math.abs(itest??1)<1e-14)throw Error('The port has infinite resistance; a finite Thévenin/Norton equivalent is unavailable.');
+ const isc=rth===0?null:vth/rth,rl=loadResistance??load?.value;
+ const result={vth,isc,rth,itest,currentTest,port:[a,b],removedLoad:load?.id||null,
+  dependent:network.components.filter(c=>dependentTypes.includes(c.type)||c.type==='opamp').map(c=>c.id),
+  linearOpamps:opamps.length>0};
  if(rl!==undefined){if(!Number.isFinite(rl)||rl<=0)throw Error('Load resistance must be positive.');if(Math.abs(rth+rl)<1e-12)throw Error('This load makes the equivalent singular.');result.loadResistance=rl;result.loadCurrent=vth/(rth+rl);result.loadVoltage=result.loadCurrent*rl;}
  return result;
 }
 
 // A spanning-tree cycle basis works for nonplanar layouts as well as planar meshes.
 export function loopAnalysis(circuit){
- if(circuit.components.some(c=>c.type==='opamp'))throw Error('Use Run in Workspace to simulate op amps.');
- const s=solve(circuit),t=s.topology,edges=circuit.components.filter(c=>c.type!=='ground').map(c=>({c,nodes:pins(c).map(t.node)}));
+ const s=solve(circuit),t=s.topology,edges=circuit.components.filter(c=>c.type!=='ground').map(c=>({c,nodes:c.type==='opamp'?[t.node(pins(c)[0]),-1]:pins(c).map(t.node)}));
  const tree=new Map(),cycles=[];
  const path=(from,to,seen=new Set())=>{if(from===to)return [];seen.add(from);for(const e of tree.get(from)||[]){if(seen.has(e.to))continue;const rest=path(e.to,to,seen);if(rest)return [{id:e.id,sign:e.sign},...rest];}return null;};
  for(const {c,nodes:[a,b]} of edges){const back=path(b,a);if(back){cycles.push([{id:c.id,sign:1},...back]);}else{if(!tree.has(a))tree.set(a,[]);if(!tree.has(b))tree.set(b,[]);tree.get(a).push({to:b,id:c.id,sign:1});tree.get(b).push({to:a,id:c.id,sign:-1});}}
@@ -38,7 +54,7 @@ export function loopAnalysis(circuit){
  const drop=c=>c.type==='resistor'?`(${c.value})*${branch(c.id)}`:c.type==='voltage'?`(${c.value})`:c.type==='ccvs'?`(${c.value})*${branch(c.control)}`:`V(${c.id})`;
  const loopEquations=cycles.map(cycle=>cycle.map(e=>(e.sign<0?'-':'+')+drop(edges.find(row=>row.c.id===e.id).c)).join('').replace(/^\+/,'')+' = 0');
  const constraints=edges.flatMap(({c})=>c.type==='current'?[`${branch(c.id)} = ${c.value}`]:c.type==='cccs'?[`${branch(c.id)} = (${c.value})*${branch(c.control)}`]:[]);
- return {rows,loops,loopEquations,constraints,power:rows.reduce((sum,r)=>sum+r.p,0),kcl:Array.from({length:t.count},(_,i)=>({node:'N'+(i+1),terms:rows.flatMap(r=>r.nodes[0]===i&&r.nodes[1]!==i?[{id:r.id,sign:1}]:r.nodes[1]===i&&r.nodes[0]!==i?[{id:r.id,sign:-1}]:[])}))};
+ return {rows,loops,loopEquations,constraints,opamps:edges.filter(({c})=>c.type==='opamp').map(({c})=>c.id),power:rows.reduce((sum,r)=>sum+r.p,0),kcl:Array.from({length:t.count},(_,i)=>({node:'N'+(i+1),terms:rows.flatMap(r=>r.nodes[0]===i&&r.nodes[1]!==i?[{id:r.id,sign:1}]:r.nodes[1]===i&&r.nodes[0]!==i?[{id:r.id,sign:-1}]:[])}))};
 }
 
 export function sourceTransformation(circuit,id){

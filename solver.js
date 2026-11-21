@@ -67,7 +67,7 @@ export function solve(circuit,options){
  return solvePrepared(circuit,prepareSolve(circuit),options);
 }
 
-function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,history={},diodeStates=null,opampStates={},iteration=0}={}){
+function solvePrepared(circuit,prepared,{mode='dc',linearOpamps=false,frequency=50,dt=0.001,time=0,history={},diodeStates=null,opampStates={},iteration=0}={}){
  const {top,cs,index,count,nonlinear,opamps}=prepared;
  if(mode==='ac'&&!(frequency>0))throw Error('AC frequency must be positive.');
  if(mode==='ac'&&nonlinear.length)throw Error('LEDs and diodes support DC and transient analysis. AC small-signal analysis is not available.');
@@ -116,7 +116,7 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
  for(const {c,outputMin,outputMax} of opamps){
   const [,minus,plus]=pins(c);
   const demand=opampStates[c.id]===undefined?results[c.id].v.re:c.value*(voltage(plus).re-voltage(minus).re);
-  if(mode!=='ac'){
+  if(mode!=='ac'&&!linearOpamps){
    if(demand<outputMin-1e-7)nextOpampStates[c.id]=outputMin;
    if(demand>outputMax+1e-7)nextOpampStates[c.id]=outputMax;
    results[c.id].saturation=opampStates[c.id]===undefined?'linear':opampStates[c.id]===outputMin?'low':'high';
@@ -125,7 +125,7 @@ function solvePrepared(circuit,prepared,{mode='dc',frequency=50,dt=0.001,time=0,
  const opampChanged=opamps.some(({c})=>opampStates[c.id]!==nextOpampStates[c.id]);
  if(opampChanged||nonlinear.some(c=>updated[c.id]!==diodeStates[c.id])){
   if(iteration>=80)throw Error('The nonlinear circuit did not converge. Check feedback, source polarity and series resistance.');
-  return solvePrepared(circuit,prepared,{mode,frequency,dt,time,history,diodeStates:updated,opampStates:nextOpampStates,iteration:iteration+1});
+  return solvePrepared(circuit,prepared,{mode,linearOpamps,frequency,dt,time,history,diodeStates:updated,opampStates:nextOpampStates,iteration:iteration+1});
  }
  for(const c of nonlinear)results[c.id].lit=c.type==='led'&&results[c.id].i.re>1e-4;
  return {results,history:next,voltage,topology:top};
